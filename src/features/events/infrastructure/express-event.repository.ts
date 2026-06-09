@@ -100,17 +100,14 @@ export class ExpressEventRepository implements IEventRepository {
   }
 
   async createEvent(input: Omit<Event, 'id' | 'createdAt' | 'updatedAt'>): Promise<Event> {
-    const t = await this.token();
-    const { data, error } = await expressClient.post<EventDto>('/admin/evento', {
-      titulo: input.title,
-      descripcion: input.description,
-      imagen: input.imageUrl,
-      ubicacion: input.location,
-      categoria: input.category,
-      fecha_inicio: input.startDate,
-      fecha_fin: input.endDate,
+    const { data, error } = await expressClient.post<EventDto>('/evento', {
+      nombre: input.title,
       organizador: input.organizer,
-    }, t);
+      fecha: input.startDate?.slice(0, 10) ?? '',
+      hora: input.startDate?.slice(11, 16) ?? '',
+      ubicacion: input.location,
+      informacion: input.description ?? '',
+    });
     if (error || !data) throw apiError(error);
     return mapEventToEntity(data);
   }

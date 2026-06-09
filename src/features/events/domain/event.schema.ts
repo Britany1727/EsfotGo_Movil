@@ -40,9 +40,8 @@ export const eventFormSchema = z
       .or(z.literal('')),
     organizer: z
       .string()
-      .max(100, 'El organizador no debe exceder 100 caracteres')
-      .optional()
-      .or(z.literal('')),
+      .min(1, 'El organizador es obligatorio')
+      .max(100, 'El organizador no debe exceder 100 caracteres'),
   })
   .refine(
     (data) => {

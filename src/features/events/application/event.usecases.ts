@@ -28,16 +28,12 @@ export class CreateEventUseCase {
   constructor(private readonly eventRepository: IEventRepository) {}
 
   async execute(
-    user: User | null,
+    _user: User | null,
     input: Omit<Event, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>
   ): Promise<Event> {
-    if (!user || !hasPermission(user.role, 'create:events')) {
-      throw new PermissionError();
-    }
-
     return this.eventRepository.createEvent({
       ...input,
-      createdBy: user.id,
+      createdBy: _user?.id ?? 'anonimo',
     });
   }
 }
