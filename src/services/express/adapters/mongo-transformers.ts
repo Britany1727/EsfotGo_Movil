@@ -4,8 +4,6 @@
 // Converts app entities (camelCase, English) to MongoDB wire format (snake_case, Spanish).
 // Used when sending data TO the Express API (POST, PUT).
 
-import type { PartialExcept } from '@/core/types';
-
 // ─── Profile ─────────────────────────────────────────────────
 
 interface UpdateProfileEntity {

@@ -11,7 +11,7 @@ export function GpsPermissionPrompt() {
   useEffect(() => {
     if (status === 'granted') {
       const timer = setTimeout(() => {
-        router.replace('/(drawer)');
+        router.replace('/(drawer)/(tabs)');
       }, 800);
       return () => clearTimeout(timer);
     }
@@ -27,7 +27,7 @@ export function GpsPermissionPrompt() {
   };
 
   const handleSkip = () => {
-    router.replace('/(drawer)');
+    router.replace('/(drawer)/(tabs)');
   };
 
   return (

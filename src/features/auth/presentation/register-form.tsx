@@ -53,7 +53,7 @@ export function RegisterForm() {
       if (result.emailConfirmationRequired) {
         router.replace('/auth/verify');
       } else {
-        router.replace('/(drawer)');
+        router.replace('/(drawer)/(tabs)');
       }
     } catch (error) {
       if (error instanceof AppError) {

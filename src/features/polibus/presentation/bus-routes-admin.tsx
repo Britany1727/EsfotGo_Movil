@@ -75,8 +75,8 @@ export function BusRoutesAdmin() {
               {route.description && <Text style={s.routeDesc}>{route.description}</Text>}
             </View>
             <View style={s.routeActions}>
-              <AppButton variant="ghost" size="sm" icon={<Edit2 size={16} color={T.textSecondary} />} onPress={() => startEditRoute(route)} />
-              <AppButton variant="ghost" size="sm" icon={<Trash2 size={16} color={T.error} />} onPress={() => handleDeleteRoute(route)} />
+              <AppButton label="" variant="ghost" size="sm" icon={<Edit2 size={16} color={T.textSecondary} />} onPress={() => startEditRoute(route)} />
+              <AppButton label="" variant="ghost" size="sm" icon={<Trash2 size={16} color={T.error} />} onPress={() => handleDeleteRoute(route)} />
             </View>
           </View>
           <View style={s.stopSection}>

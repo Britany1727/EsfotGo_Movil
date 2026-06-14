@@ -11,9 +11,9 @@ const AUTH_TOKEN_KEY = 'esfotgo_jwt_token';
 const AUTH_USER_KEY = 'esfotgo_jwt_user';
 const AUTH_REFRESH_KEY = 'esfotgo_jwt_refresh';
 
-interface LoginResponse { token: string; user: Record<string, unknown>; }
-interface RegisterResponse { msg: string; emailConfirmationRequired?: boolean; user?: Record<string, unknown>; }
-interface ProfileResponse { _id: string; nombre: string; apellido?: string; email: string; telefono?: string; rol?: string; }
+interface LoginResponse { token: string; user: UserDto; refreshToken?: string; }
+interface RegisterResponse { msg: string; emailConfirmationRequired?: boolean; user?: UserDto; }
+interface ProfileResponse { _id: string; nombre: string; apellido?: string; email: string; telefono?: string; rol?: string; imagen?: string; }
 
 export class ExpressAuthRepository implements IAuthRepository {
   async signIn(input: LoginInput): Promise<{ user: User; token: string }> {
@@ -28,11 +28,11 @@ export class ExpressAuthRepository implements IAuthRepository {
     }
     console.log('[ExpressRepo] signIn exitoso');
     await SecureStore.setItemAsync(AUTH_TOKEN_KEY, data.token);
-    if ((data as Record<string, unknown>).refreshToken) {
-      await SecureStore.setItemAsync(AUTH_REFRESH_KEY, (data as Record<string, unknown>).refreshToken as string);
+    if (data.refreshToken) {
+      await SecureStore.setItemAsync(AUTH_REFRESH_KEY, data.refreshToken);
     }
     await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(data.user));
-    return { user: mapUserDtoToUser(data.user as UserDto), token: data.token };
+    return { user: mapUserDtoToUser(data.user), token: data.token };
   }
 
   async signUp(input: RegisterInput): Promise<RegistrationResult> {
@@ -53,7 +53,7 @@ export class ExpressAuthRepository implements IAuthRepository {
     }
     console.log('[ExpressRepo] signUp exitoso');
     const user: User = {
-      id: (data.user as Record<string, unknown>)?.['_id'] as string ?? '',
+      id: data.user?._id ?? '',
       email: input.email.toLowerCase().trim(),
       fullName: `${input.nombre.trim()} ${input.apellido.trim()}`,
       role: 'estudiante',
@@ -83,7 +83,7 @@ export class ExpressAuthRepository implements IAuthRepository {
     }
     console.log('[ExpressRepo] signUpDocente exitoso');
     const user: User = {
-      id: (data.user as Record<string, unknown>)?.['_id'] as string ?? '',
+      id: data.user?._id ?? '',
       email: input.email.toLowerCase().trim(),
       fullName: `${input.nombre.trim()} ${input.apellido.trim()}`,
       role: 'docente',
@@ -124,8 +124,8 @@ export class ExpressAuthRepository implements IAuthRepository {
       if (error || !data) {
         console.log('[ExpressRepo] getSession: error al obtener perfil:', error, '— usando datos locales');
         if (userJson) {
-          const stored = JSON.parse(userJson) as Record<string, unknown>;
-          return { user: mapUserDtoToUser(stored as UserDto), token };
+          const stored = JSON.parse(userJson) as unknown as UserDto;
+          return { user: mapUserDtoToUser(stored), token };
         }
         return null;
       }

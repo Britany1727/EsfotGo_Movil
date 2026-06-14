@@ -83,13 +83,13 @@ export class ExpressPoiRepository {
   async getAll(): Promise<CampusLocation[]> {
     if (isDevMode()) return MockData.getCampusLocations();
     const { data, error } = await expressClient.get<LocationDto[]>('/mapa/ubicaciones');
-    if (error) throw new AppError(error, 'API_ERROR');
+    if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     return (data ?? []).map(mapDtoToLocation);
   }
 
   async getById(id: string): Promise<CampusLocation> {
     const { data, error } = await expressClient.get<LocationDto>(`/mapa/ubicacion/${id}`);
-    if (error) throw new AppError(error, 'API_ERROR');
+    if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     if (!data) throw new NotFoundError('POI no encontrado');
     return mapDtoToLocation(data);
   }
@@ -103,7 +103,7 @@ export class ExpressPoiRepository {
       nombre: input.name, descripcion: input.description, categoria: input.category,
       latitud: input.latitude, longitud: input.longitude, imagen: input.imageUrl,
     }, t);
-    if (error || !data) throw new AppError(error, 'API_ERROR');
+    if (error || !data) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     return mapDtoToLocation(data);
   }
 
@@ -118,7 +118,7 @@ export class ExpressPoiRepository {
     if (input.longitude !== undefined) payload.longitud = input.longitude;
     if (input.imageUrl !== undefined) payload.imagen = input.imageUrl;
     const { data, error } = await expressClient.put<LocationDto>(`/admin/mapa/ubicaciones/${id}`, payload, t);
-    if (error || !data) throw new AppError(error, 'API_ERROR');
+    if (error || !data) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     return mapDtoToLocation(data);
   }
 
@@ -126,7 +126,7 @@ export class ExpressPoiRepository {
     if (isDevMode()) return;
     const t = await this.token();
     const { error } = await expressClient.delete(`/admin/mapa/ubicaciones/${id}`, t);
-    if (error) throw new AppError(error, 'API_ERROR');
+    if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
   }
 
   async getZones(): Promise<RestrictedZone[]> {
@@ -143,7 +143,7 @@ export class ExpressPoiRepository {
       nombre: zone.name, descripcion: zone.description, coordenadas: zone.coordinates,
       fill_color: zone.fillColor, stroke_color: zone.strokeColor, activo: zone.isActive,
     }, t);
-    if (error || !data) throw new AppError(error, 'API_ERROR');
+    if (error || !data) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     return mapDtoToZone(data);
   }
 
@@ -152,7 +152,7 @@ export class ExpressPoiRepository {
     const t = await this.token();
     const dto = mapZoneToDto(input);
     const { data, error } = await expressClient.put<ZoneDto>(`/admin/mapa/zonas/${id}`, dto, t);
-    if (error || !data) throw new AppError(error, 'API_ERROR');
+    if (error || !data) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     return mapDtoToZone(data);
   }
 
@@ -160,7 +160,7 @@ export class ExpressPoiRepository {
     if (isDevMode()) return;
     const t = await this.token();
     const { error } = await expressClient.delete(`/admin/mapa/zonas/${id}`, t);
-    if (error) throw new AppError(error, 'API_ERROR');
+    if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
   }
 
   subscribeToChanges(callback: () => void): () => void {

@@ -43,5 +43,5 @@ export async function submitValidRows(
   fileName: string,
   fileMimeType: string
 ): Promise<UploadResult> {
-  return repository.upload(target, rows, token, fileUri, fileName, fileMimeType);
+  return repository.upload(target, rows as unknown as Parameters<typeof repository.upload>[1], token, fileUri, fileName, fileMimeType);
 }

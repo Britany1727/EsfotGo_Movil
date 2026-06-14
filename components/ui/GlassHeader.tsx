@@ -1,10 +1,10 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
-import Animated, { useAnimatedStyle, interpolate, Extrapolation } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, interpolate, Extrapolation, type SharedValue } from 'react-native-reanimated';
 import { LightTheme as T, Sizes, Typography } from '@/constants/design-system';
 
 interface GlassHeaderProps {
-  scrollY: Animated.SharedValue<number>;
+  scrollY: SharedValue<number>;
   userName?: string;
   userInitials?: string;
   userAvatar?: string | null;

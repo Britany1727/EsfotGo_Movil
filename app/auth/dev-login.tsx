@@ -36,7 +36,7 @@ export default function DevLoginScreen() {
         // Express mock optional
       }
 
-      router.replace("/(drawer)");
+      router.replace("/(drawer)/(tabs)");
     } catch {
       // Ignore
     }
@@ -84,7 +84,7 @@ export default function DevLoginScreen() {
 
         <TouchableOpacity
           style={styles.skipButton}
-          onPress={() => router.replace("/(drawer)")}
+          onPress={() => router.replace("/(drawer)/(tabs)")}
           activeOpacity={0.7}
         >
           <Text style={styles.skipText}>Entrar sin sesión (modo invitado)</Text>

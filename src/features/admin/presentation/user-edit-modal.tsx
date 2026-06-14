@@ -72,10 +72,10 @@ export function UserEditModal({ visible, user, isLoading, onSave, onClose }: Use
     if (!errors.nombre && !errors.email && !errors.telefono) {
       onSave(user, {
         nombre: data.nombre.trim(),
-        apellido: data.apellido.trim() || undefined,
+        apellido: data.apellido?.trim() || undefined,
         email: data.email.trim(),
-        telefono: data.telefono.trim() || undefined,
-        direccion: data.direccion.trim() || undefined,
+        telefono: data.telefono?.trim() || undefined,
+        direccion: data.direccion?.trim() || undefined,
         rol: role,
       });
     }

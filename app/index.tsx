@@ -86,7 +86,7 @@ export default function SplashAndRedirect() {
     }
     if (user) {
       console.log('[Splash] Usuario autenticado → drawer');
-      return <Redirect href="/(drawer)" />;
+      return <Redirect href="/(drawer)/(tabs)" />;
     }
     console.log('[Splash] Sin autenticación → login');
     return <Redirect href="/auth/login" />;

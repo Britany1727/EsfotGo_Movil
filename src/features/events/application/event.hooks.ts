@@ -58,9 +58,9 @@ export function useInfiniteEvents(search?: string, dateFilter: EventDateFilter =
       }
 
       const result = await repository.getEvents(pageParam + 1, PAGE_SIZE, debouncedSearch || undefined);
-      if (result.error) {
-        console.log('[useInfiniteEvents] Error del repositorio:', result.error);
-        throw new Error(result.error);
+      if (!result || !result.data) {
+        console.log('[useInfiniteEvents] Invalid paginated response');
+        throw new Error('Invalid paginated response');
       }
       return {
         data: result.data,

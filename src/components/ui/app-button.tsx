@@ -3,7 +3,7 @@ import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, type TouchableOp
 import { LightTheme as T, Sizes, Typography } from '@/constants/design-system';
 
 interface AppButtonProps extends TouchableOpacityProps {
-  label: string;
+  label?: string;
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
   size?: 'sm' | 'md' | 'lg';
   icon?: React.ReactNode;
@@ -49,13 +49,15 @@ export function AppButton({
       ) : (
         <>
           {icon && icon}
-          <Text style={[
-            styles.textBase,
-            styles[`textSize_${size}`],
-            { color: getTextColor(), marginLeft: icon ? 6 : 0 }
-          ]}>
-            {label}
-          </Text>
+          {label ? (
+            <Text style={[
+              styles.textBase,
+              styles[`textSize_${size}`],
+              { color: getTextColor(), marginLeft: icon ? 6 : 0 }
+            ]}>
+              {label}
+            </Text>
+          ) : null}
         </>
       )}
     </TouchableOpacity>

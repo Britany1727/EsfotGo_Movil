@@ -19,7 +19,7 @@ export const aulaFormSchema = z.object({
     .string()
     .optional()
     .or(z.literal('')),
-  estado: estadoAulaSchema.optional().default('disponible'),
+  estado: estadoAulaSchema,
 });
 
 export type AulaFormInput = z.infer<typeof aulaFormSchema>;

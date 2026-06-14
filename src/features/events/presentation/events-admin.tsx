@@ -57,8 +57,8 @@ export function EventsAdmin() {
               <Text style={s.cardMeta}>{item.location ?? 'Sin ubicación'} · {new Date(item.startDate).toLocaleDateString('es')}</Text>
             </View>
             <View style={s.actions}>
-              <AppButton variant="ghost" size="sm" icon={<Edit2 size={16} color={T.primary} />} onPress={() => handleEdit(item)} />
-              <AppButton variant="ghost" size="sm" icon={<Trash2 size={16} color={T.error} />} onPress={() => handleDelete(item)} />
+              <AppButton label="" variant="ghost" size="sm" icon={<Edit2 size={16} color={T.primary} />} onPress={() => handleEdit(item)} />
+              <AppButton label="" variant="ghost" size="sm" icon={<Trash2 size={16} color={T.error} />} onPress={() => handleDelete(item)} />
             </View>
           </AppCard>
         )}

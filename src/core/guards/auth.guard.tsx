@@ -41,7 +41,7 @@ export function GuestGuard({ children }: { children: React.ReactNode }) {
 
   if (isAuthenticated && isSessionValid) {
     console.log('[GuestGuard] Usuario ya autenticado — redirigiendo al drawer');
-    return <Redirect href="/(drawer)" />;
+    return <Redirect href="/(drawer)/(tabs)" />;
   }
 
   return <>{children}</>;

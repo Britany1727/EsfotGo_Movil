@@ -118,10 +118,7 @@ export function LoginForm() {
           token,
         );
 
-        router.replace({
-          pathname: "/(drawer)",
-          params: { showGpsPrompt: "1" },
-        });
+        router.replace(`/(drawer)/(tabs)?showGpsPrompt=1`);
       } catch (e) {
         setErr(mapError(e));
       }

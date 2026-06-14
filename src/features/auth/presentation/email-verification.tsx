@@ -48,7 +48,7 @@ export function EmailVerificationScreen() {
 
   useEffect(() => {
     if (user) {
-      router.replace('/(drawer)');
+      router.replace('/(drawer)/(tabs)');
     }
   }, [user, router]);
 

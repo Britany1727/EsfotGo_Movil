@@ -74,7 +74,7 @@ export class ExpressGraphRepository implements IGraphRepository {
     const payload: Record<string, unknown> = { label: node.label, latitude: node.latitude, longitude: node.longitude };
     if (node.id) payload._id = node.id;
     const { data, error } = await expressClient.post<GraphNodeDto>('/admin/mapa/grafo/nodos', payload, t);
-    if (error || !data) throw new AppError(error, 'API_ERROR');
+    if (error || !data) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     return mapDtoToNode(data);
   }
 
@@ -82,7 +82,7 @@ export class ExpressGraphRepository implements IGraphRepository {
     if (isDevMode()) return;
     const t = await this.token();
     const { error } = await expressClient.delete(`/admin/mapa/grafo/nodos/${id}`, t);
-    if (error) throw new AppError(error, 'API_ERROR');
+    if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
   }
 
   async upsertEdge(edge: Omit<GraphEdge, 'id'> & { id?: string }): Promise<GraphEdge> {
@@ -94,7 +94,7 @@ export class ExpressGraphRepository implements IGraphRepository {
     };
     if (edge.id) payload._id = edge.id;
     const { data, error } = await expressClient.post<GraphEdgeDto>('/admin/mapa/grafo/aristas', payload, t);
-    if (error || !data) throw new AppError(error, 'API_ERROR');
+    if (error || !data) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     return mapDtoToEdge(data);
   }
 
@@ -106,7 +106,7 @@ export class ExpressGraphRepository implements IGraphRepository {
     if (patch.blocked !== undefined) payload.blocked = patch.blocked;
     if (patch.bidirectional !== undefined) payload.bidirectional = patch.bidirectional;
     const { data, error } = await expressClient.put<GraphEdgeDto>(`/admin/mapa/grafo/aristas/${id}`, payload, t);
-    if (error || !data) throw new AppError(error, 'API_ERROR');
+    if (error || !data) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     return mapDtoToEdge(data);
   }
 
@@ -114,6 +114,6 @@ export class ExpressGraphRepository implements IGraphRepository {
     if (isDevMode()) return;
     const t = await this.token();
     const { error } = await expressClient.delete(`/admin/mapa/grafo/aristas/${id}`, t);
-    if (error) throw new AppError(error, 'API_ERROR');
+    if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
   }
 }

@@ -79,7 +79,7 @@ export class ExpressTutoriaRepository {
   async getAll(): Promise<Tutoria[]> {
     if (isDevMode()) return [];
     const { data, error } = await expressClient.get<TutoriaResponseDto[]>('/admin/tutorias');
-    if (error) throw new AppError(error, 'API_ERROR');
+    if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     return (data ?? []).map(mapDtoToTutoria);
   }
 
@@ -93,7 +93,7 @@ export class ExpressTutoriaRepository {
     const t = await this.token();
     const dto = mapTutoriaToBackendDto(input);
     const { data, error } = await expressClient.post<TutoriaResponseDto>('/admin/tutoria', dto, t);
-    if (error || !data) throw new AppError(error, 'API_ERROR');
+    if (error || !data) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     return mapDtoToTutoria(data);
   }
 
@@ -101,14 +101,14 @@ export class ExpressTutoriaRepository {
     const t = await this.token();
     const dto = mapTutoriaUpdateToBackendDto(input);
     const { data, error } = await expressClient.put<TutoriaResponseDto>(`/admin/tutoria/${id}`, dto, t);
-    if (error || !data) throw new AppError(error, 'API_ERROR');
+    if (error || !data) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     return mapDtoToTutoria(data);
   }
 
   async delete(id: string): Promise<void> {
     const t = await this.token();
     const { error } = await expressClient.delete(`/admin/tutoria/${id}`, t);
-    if (error) throw new AppError(error, 'API_ERROR');
+    if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
   }
 
   async getEnrollments(tutoriaId: string): Promise<TutoriaEnrollment[]> {
@@ -125,13 +125,13 @@ export class ExpressTutoriaRepository {
   async enroll(tutoriaId: string, studentId: string): Promise<void> {
     const t = await this.token();
     const { error } = await expressClient.post(`/admin/tutoria/${tutoriaId}/inscribir`, { estudiante_id: studentId }, t);
-    if (error) throw new AppError(error, 'API_ERROR');
+    if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
   }
 
   async unenroll(tutoriaId: string, studentId: string): Promise<void> {
     const t = await this.token();
     const { error } = await expressClient.delete(`/admin/tutoria/${tutoriaId}/inscribir?estudiante_id=${studentId}`, t);
-    if (error) throw new AppError(error, 'API_ERROR');
+    if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
   }
 
   async isEnrolled(tutoriaId: string, studentId: string): Promise<boolean> {
