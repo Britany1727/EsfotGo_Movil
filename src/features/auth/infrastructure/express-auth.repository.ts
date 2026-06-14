@@ -4,6 +4,8 @@ import { AuthError } from '@/core/errors/app-error';
 import type { User } from '@/core/types';
 import type { IAuthRepository, RegistrationResult } from '../domain/auth.repository';
 import type { LoginInput, RegisterInput, UpdateProfileInput } from '../domain/auth.schema';
+import { mapUserDtoToUser } from '@/services/express/adapters/mongo-mappers';
+import type { UserDto } from '@/services/express/adapters/mongo-dtos';
 
 const AUTH_TOKEN_KEY = 'esfotgo_jwt_token';
 const AUTH_USER_KEY = 'esfotgo_jwt_user';
@@ -30,7 +32,7 @@ export class ExpressAuthRepository implements IAuthRepository {
       await SecureStore.setItemAsync(AUTH_REFRESH_KEY, (data as Record<string, unknown>).refreshToken as string);
     }
     await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(data.user));
-    return { user: this.mapToUser(data.user), token: data.token };
+    return { user: mapUserDtoToUser(data.user as UserDto), token: data.token };
   }
 
   async signUp(input: RegisterInput): Promise<RegistrationResult> {
@@ -123,11 +125,11 @@ export class ExpressAuthRepository implements IAuthRepository {
         console.log('[ExpressRepo] getSession: error al obtener perfil:', error, '— usando datos locales');
         if (userJson) {
           const stored = JSON.parse(userJson) as Record<string, unknown>;
-          return { user: this.mapToUser(stored), token };
+          return { user: mapUserDtoToUser(stored as UserDto), token };
         }
         return null;
       }
-      const user = this.mapProfileToUser(data);
+      const user = mapUserDtoToUser(data as unknown as UserDto);
       await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(user));
       return { user, token };
     } catch (err) {
@@ -151,7 +153,7 @@ export class ExpressAuthRepository implements IAuthRepository {
       console.log('[ExpressRepo] updateProfile error:', error);
       throw new AuthError(error ?? 'Error al actualizar perfil');
     }
-    return this.mapProfileToUser(data);
+    return mapUserDtoToUser(data as unknown as UserDto);
   }
 
   async changePassword(currentPassword: string, newPassword: string): Promise<void> {
@@ -223,31 +225,5 @@ export class ExpressAuthRepository implements IAuthRepository {
       callback(session);
     }, 4 * 60 * 1000);
     return () => clearInterval(interval);
-  }
-
-  private mapToUser(data: Record<string, unknown>): User {
-    return {
-      id: (data._id as string) ?? (data.id as string) ?? '',
-      email: (data.email as string) ?? '',
-      fullName: ((data.nombre as string) ?? (data.fullName as string)) || null,
-      role: ((data.rol as User['role']) ?? 'estudiante'),
-      avatarUrl: (data.avatarUrl as string) ?? null,
-      phone: (data.telefono as string) ?? null,
-      createdAt: (data.createdAt as string) ?? new Date().toISOString(),
-      updatedAt: (data.updatedAt as string) ?? new Date().toISOString(),
-    };
-  }
-
-  private mapProfileToUser(data: ProfileResponse): User {
-    return {
-      id: data._id,
-      email: data.email,
-      fullName: data.nombre ? `${data.nombre} ${data.apellido ?? ''}`.trim() : null,
-      role: ((data.rol as User['role']) ?? 'estudiante'),
-      avatarUrl: null,
-      phone: data.telefono ?? null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
   }
 }

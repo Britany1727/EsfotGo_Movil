@@ -5,6 +5,8 @@ import type { BusRoute, BusStop, BusLocation } from '../domain/route.entity';
 import type { IBusRepository } from '../domain/bus.repository';
 import { isDevMode } from '@/core/config/env';
 import { MockData } from '@/core/dev/mock-services';
+import { mapBusRouteDtoToBusRoute, mapBusStopDtoToBusStop, mapBusLocationDtoToBusLocation } from '@/services/express/adapters/mongo-mappers';
+import type { BusRouteDto, BusStopDto, BusLocationDto } from '@/services/express/adapters/mongo-dtos';
 
 const AUTH_TOKEN_KEY = 'esfotgo_jwt_token';
 
@@ -17,28 +19,28 @@ export class ExpressBusRepository implements IBusRepository {
     if (isDevMode()) return MockData.getBusRoutes();
     const { data, error } = await expressClient.get<Record<string, unknown>[]>('/bus/rutas');
     if (error) return [];
-    return (data ?? []).map(this.mapRoute);
+    return (data ?? []).map((r) => mapBusRouteDtoToBusRoute(r as BusRouteDto));
   }
 
   async getAllRoutes(): Promise<BusRoute[]> {
     if (isDevMode()) return MockData.getBusRoutes();
     const { data, error } = await expressClient.get<Record<string, unknown>[]>('/admin/bus/rutas');
     if (error) return [];
-    return (data ?? []).map(this.mapRoute);
+    return (data ?? []).map((r) => mapBusRouteDtoToBusRoute(r as BusRouteDto));
   }
 
   async getRouteStops(routeId: string): Promise<BusStop[]> {
     if (isDevMode()) return MockData.getBusStops(routeId);
     const { data, error } = await expressClient.get<Record<string, unknown>[]>(`/bus/paradas/${routeId}`);
     if (error) return [];
-    return (data ?? []).map(this.mapStop);
+    return (data ?? []).map((r) => mapBusStopDtoToBusStop(r as BusStopDto));
   }
 
   async getBusLocations(routeId: string): Promise<BusLocation[]> {
     if (isDevMode()) return MockData.getBusLocations(routeId);
     const { data, error } = await expressClient.get<Record<string, unknown>[]>(`/bus/posiciones/${routeId}`);
     if (error) return [];
-    return (data ?? []).map(this.mapLocation);
+    return (data ?? []).map((r) => mapBusLocationDtoToBusLocation(r as BusLocationDto));
   }
 
   async createRoute(input: Omit<BusRoute, 'id' | 'createdAt'>): Promise<BusRoute> {
@@ -48,7 +50,7 @@ export class ExpressBusRepository implements IBusRepository {
       nombre: input.name, descripcion: input.description, color: input.color, activo: input.isActive,
     }, t);
     if (error) throw mapSupabaseError(new Error(error));
-    return this.mapRoute(data!);
+    return mapBusRouteDtoToBusRoute(data! as BusRouteDto);
   }
 
   async updateRoute(id: string, input: Partial<BusRoute>): Promise<BusRoute> {
@@ -66,7 +68,7 @@ export class ExpressBusRepository implements IBusRepository {
     if (input.isActive !== undefined) payload.activo = input.isActive;
     const { data, error } = await expressClient.put<Record<string, unknown>>(`/admin/bus/rutas/${id}`, payload, t);
     if (error) throw mapSupabaseError(new Error(error));
-    return this.mapRoute(data!);
+    return mapBusRouteDtoToBusRoute(data! as BusRouteDto);
   }
 
   async deleteRoute(id: string): Promise<void> {
@@ -83,7 +85,7 @@ export class ExpressBusRepository implements IBusRepository {
       ruta_id: input.routeId, nombre: input.name, latitud: input.latitude, longitud: input.longitude, orden: input.stopOrder,
     }, t);
     if (error) throw mapSupabaseError(new Error(error));
-    return this.mapStop(data!);
+    return mapBusStopDtoToBusStop(data! as BusStopDto);
   }
 
   async updateStop(id: string, input: Partial<BusStop>): Promise<BusStop> {
@@ -96,7 +98,7 @@ export class ExpressBusRepository implements IBusRepository {
     if (input.stopOrder !== undefined) payload.orden = input.stopOrder;
     const { data, error } = await expressClient.put<Record<string, unknown>>(`/admin/bus/paradas/${id}`, payload, t);
     if (error) throw mapSupabaseError(new Error(error));
-    return this.mapStop(data!);
+    return mapBusStopDtoToBusStop(data! as BusStopDto);
   }
 
   async deleteStop(id: string): Promise<void> {
@@ -104,40 +106,5 @@ export class ExpressBusRepository implements IBusRepository {
     const t = await this.token();
     const { error } = await expressClient.delete(`/admin/bus/paradas/${id}`, t);
     if (error) throw mapSupabaseError(new Error(error));
-  }
-
-  private mapRoute(row: Record<string, unknown>): BusRoute {
-    return {
-      id: (row._id as string) ?? (row.id as string) ?? '',
-      name: (row.nombre as string) ?? (row.name as string) ?? '',
-      description: (row.descripcion as string) ?? (row.description as string) ?? null,
-      color: (row.color as string) ?? '#1B6BB0',
-      isActive: ((row.activo as boolean) ?? (row.isActive as boolean) ?? true),
-      createdAt: (row.created_at as string) ?? (row.createdAt as string) ?? new Date().toISOString(),
-    };
-  }
-
-  private mapStop(row: Record<string, unknown>): BusStop {
-    return {
-      id: (row._id as string) ?? (row.id as string) ?? '',
-      routeId: (row.ruta_id as string) ?? (row.route_id as string) ?? (row.routeId as string) ?? '',
-      name: (row.nombre as string) ?? (row.name as string) ?? '',
-      latitude: (row.latitud as number) ?? (row.latitude as number) ?? 0,
-      longitude: (row.longitud as number) ?? (row.longitude as number) ?? 0,
-      stopOrder: (row.orden as number) ?? (row.stop_order as number) ?? (row.stopOrder as number) ?? 0,
-      createdAt: (row.created_at as string) ?? (row.createdAt as string) ?? new Date().toISOString(),
-    };
-  }
-
-  private mapLocation(row: Record<string, unknown>): BusLocation {
-    return {
-      id: (row._id as string) ?? (row.id as string) ?? '',
-      routeId: (row.ruta_id as string) ?? (row.route_id as string) ?? (row.routeId as string) ?? '',
-      busId: (row.bus_id as string) ?? (row.busId as string) ?? '',
-      latitude: (row.latitud as number) ?? (row.latitude as number) ?? 0,
-      longitude: (row.longitud as number) ?? (row.longitude as number) ?? 0,
-      heading: (row.heading as number) ?? 0,
-      updatedAt: (row.updated_at as string) ?? (row.updatedAt as string) ?? new Date().toISOString(),
-    };
   }
 }

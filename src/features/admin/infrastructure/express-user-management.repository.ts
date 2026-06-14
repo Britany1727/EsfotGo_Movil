@@ -1,7 +1,13 @@
 import { expressClient, ApiResponse } from '@/services/express/api-client';
-import type { ManagedUser, ManagedUserType, CreateManagedUserInput } from '../domain/user-management.entity';
+import type { ManagedUser, ManagedUserType, ManagedUserStatus, CreateManagedUserInput } from '../domain/user-management.entity';
 import { isDevMode } from '@/core/config/env';
 import { MockData } from '@/core/dev/mock-services';
+
+function parseStatus(value: unknown): ManagedUserStatus {
+  if (typeof value === 'boolean') return value ? 'activo' : 'inactivo';
+  if (typeof value === 'string') return value.toLowerCase() === 'inactivo' ? 'inactivo' : 'activo';
+  return 'activo';
+}
 
 export class ExpressUserManagementRepository {
   async getEstudiantes(token: string): Promise<ApiResponse<ManagedUser[]>> {
@@ -83,7 +89,7 @@ export class ExpressUserManagementRepository {
       direccion: (row.direccion as string) ?? undefined,
       telefono: (row.telefono as string) ?? undefined,
       rol: (row.rol as ManagedUser['rol']) ?? (type === 'docente' ? 'docente' : 'estudiante'),
-      status: (row.status as boolean) === false ? 'inactivo' : 'activo',
+      status: parseStatus(row.status),
       type,
       createdAt: (row.createdAt as string) ?? undefined,
       updatedAt: (row.updatedAt as string) ?? undefined,
