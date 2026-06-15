@@ -2,8 +2,9 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   View, Text, TextInput as RNTextInput, TouchableOpacity,
-  StyleSheet, ActivityIndicator, ScrollView, Alert,
+  StyleSheet, ActivityIndicator, ScrollView, Alert, Platform,
 } from 'react-native';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useState, useCallback } from 'react';
 import { eventFormSchema, EVENT_CATEGORY_OPTIONS } from '../domain/event.schema';
 import type { EventFormInput, EventFormCategory } from '../domain/event.schema';
@@ -17,7 +18,13 @@ interface EventFormProps {
   editEvent?: Event;
 }
 
-function formatDateForInput(isoString: string | null): string {
+function formatDateForDisplay(isoString: string | null): string {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  return d.toLocaleDateString('es', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function formatDateForValue(isoString: string | null): string {
   if (!isoString) return '';
   const d = new Date(isoString);
   const y = d.getFullYear();
@@ -26,7 +33,7 @@ function formatDateForInput(isoString: string | null): string {
   return `${y}-${m}-${day}`;
 }
 
-function formatTimeForInput(isoString: string | null): string {
+function formatTimeForValue(isoString: string | null): string {
   if (!isoString) return '';
   const d = new Date(isoString);
   const h = String(d.getHours()).padStart(2, '0');
@@ -34,12 +41,36 @@ function formatTimeForInput(isoString: string | null): string {
   return `${h}:${min}`;
 }
 
+function parseDateValue(dateStr: string): Date {
+  if (!dateStr) return new Date();
+  const d = new Date(dateStr + 'T00:00:00');
+  return isNaN(d.getTime()) ? new Date() : d;
+}
+
+function parseTimeValue(timeStr: string, baseDate: string): Date {
+  const d = baseDate ? new Date(baseDate + 'T00:00:00') : new Date();
+  if (timeStr) {
+    const [h, m] = timeStr.split(':').map(Number);
+    if (!isNaN(h)) d.setHours(h);
+    if (!isNaN(m)) d.setMinutes(m);
+  }
+  return d;
+}
+
+type PickerMode = 'date' | 'time';
+
+interface PickerState {
+  visible: boolean;
+  mode: PickerMode;
+  field: 'startDate' | 'startTime' | 'endDate' | 'endTime';
+}
+
 export function EventForm({ onClose, onSuccess, editEvent }: EventFormProps) {
   const createMutation = useCreateEvent();
   const updateMutation = useUpdateEvent();
   const isEdit = !!editEvent;
 
-  const { control, handleSubmit, formState: { errors, isDirty }, setValue } = useForm<EventFormInput>({
+  const { control, handleSubmit, formState: { errors, isDirty }, setValue, watch } = useForm<EventFormInput>({
     resolver: zodResolver(eventFormSchema),
     defaultValues: {
       title: editEvent?.title ?? '',
@@ -47,10 +78,10 @@ export function EventForm({ onClose, onSuccess, editEvent }: EventFormProps) {
       location: editEvent?.location ?? '',
       category: ((editEvent?.category as string) as EventFormCategory | undefined) ?? 'academico',
       imageUrl: editEvent?.imageUrl ?? '',
-      startDate: formatDateForInput(editEvent?.startDate ?? null),
-      startTime: formatTimeForInput(editEvent?.startDate ?? null),
-      endDate: formatDateForInput(editEvent?.endDate ?? null),
-      endTime: formatTimeForInput(editEvent?.endDate ?? null),
+      startDate: formatDateForValue(editEvent?.startDate ?? null),
+      startTime: formatTimeForValue(editEvent?.startDate ?? null),
+      endDate: formatDateForValue(editEvent?.endDate ?? null),
+      endTime: formatTimeForValue(editEvent?.endDate ?? null),
       organizer: editEvent?.organizer ?? '',
     },
   });
@@ -59,7 +90,49 @@ export function EventForm({ onClose, onSuccess, editEvent }: EventFormProps) {
     (editEvent?.category as EventFormCategory) ?? 'academico'
   );
 
+  const [picker, setPicker] = useState<PickerState>({ visible: false, mode: 'date', field: 'startDate' });
+
   const isLoading = createMutation.isPending || updateMutation.isPending;
+
+  const watchedStartDate = watch('startDate');
+  const watchedEndDate = watch('endDate');
+  const watchedStartTime = watch('startTime');
+  const watchedEndTime = watch('endTime');
+
+  const openPicker = useCallback((field: PickerState['field'], mode: PickerMode) => {
+    setPicker({ visible: true, mode, field });
+  }, []);
+
+  const onPickerChange = useCallback((_event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setPicker((prev) => ({ ...prev, visible: false }));
+    }
+
+    if (!selectedDate) return;
+
+    const { field, mode } = picker;
+
+    if (mode === 'date') {
+      const y = selectedDate.getFullYear();
+      const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const d = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${y}-${m}-${d}`;
+      setValue(field, dateStr, { shouldValidate: true, shouldDirty: true });
+
+      // Android: after selecting date, open time picker for the time counterpart
+      if (Platform.OS === 'android') {
+        if (field === 'startDate') {
+          setPicker({ visible: true, mode: 'time', field: 'startTime' });
+        } else if (field === 'endDate') {
+          setPicker({ visible: true, mode: 'time', field: 'endTime' });
+        }
+      }
+    } else if (mode === 'time') {
+      const h = String(selectedDate.getHours()).padStart(2, '0');
+      const min = String(selectedDate.getMinutes()).padStart(2, '0');
+      setValue(field, `${h}:${min}`, { shouldValidate: true, shouldDirty: true });
+    }
+  }, [picker, setValue]);
 
   const onSubmit = useCallback(async (data: EventFormInput) => {
     try {
@@ -162,48 +235,61 @@ export function EventForm({ onClose, onSuccess, editEvent }: EventFormProps) {
           {errors.category && <Text style={styles.fieldErr}>{errors.category.message}</Text>}
         </View>
 
+        <Text style={styles.label}>Fecha y hora *</Text>
         <View style={styles.row}>
           <View style={[styles.field, styles.halfField]}>
-            <Text style={styles.label}>Fecha inicio *</Text>
-            <Controller control={control} name="startDate"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <RNTextInput style={[styles.input, errors.startDate && styles.inputErr]}
-                  placeholder="YYYY-MM-DD" placeholderTextColor={T.inputPlaceholder}
-                  onBlur={onBlur} onChangeText={onChange} value={value} />
-              )} />
+            <Text style={styles.label}>Inicio</Text>
+            <TouchableOpacity
+              style={[styles.input, errors.startDate && styles.inputErr]}
+              onPress={() => openPicker('startDate', 'date')}
+              activeOpacity={0.7}
+            >
+              <Text style={watchedStartDate ? styles.inputText : styles.placeholder}>
+                {watchedStartDate ? formatDateForDisplay(watchedStartDate + 'T00:00:00') : 'Seleccionar fecha'}
+              </Text>
+            </TouchableOpacity>
             {errors.startDate && <Text style={styles.fieldErr}>{errors.startDate.message}</Text>}
           </View>
           <View style={[styles.field, styles.halfField]}>
-            <Text style={styles.label}>Hora inicio *</Text>
-            <Controller control={control} name="startTime"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <RNTextInput style={[styles.input, errors.startTime && styles.inputErr]}
-                  placeholder="HH:MM" placeholderTextColor={T.inputPlaceholder}
-                  onBlur={onBlur} onChangeText={onChange} value={value} />
-              )} />
+            <Text style={styles.label}>Hora</Text>
+            <TouchableOpacity
+              style={[styles.input, errors.startTime && styles.inputErr]}
+              onPress={() => openPicker('startTime', 'time')}
+              activeOpacity={0.7}
+            >
+              <Text style={watchedStartTime ? styles.inputText : styles.placeholder}>
+                {watchedStartTime || 'Seleccionar hora'}
+              </Text>
+            </TouchableOpacity>
             {errors.startTime && <Text style={styles.fieldErr}>{errors.startTime.message}</Text>}
           </View>
         </View>
 
         <View style={styles.row}>
           <View style={[styles.field, styles.halfField]}>
-            <Text style={styles.label}>Fecha fin</Text>
-            <Controller control={control} name="endDate"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <RNTextInput style={[styles.input, errors.endDate && styles.inputErr]}
-                  placeholder="YYYY-MM-DD" placeholderTextColor={T.inputPlaceholder}
-                  onBlur={onBlur} onChangeText={onChange} value={value} />
-              )} />
+            <Text style={styles.label}>Fin (opcional)</Text>
+            <TouchableOpacity
+              style={[styles.input, errors.endDate && styles.inputErr]}
+              onPress={() => openPicker('endDate', 'date')}
+              activeOpacity={0.7}
+            >
+              <Text style={watchedEndDate ? styles.inputText : styles.placeholder}>
+                {watchedEndDate ? formatDateForDisplay(watchedEndDate + 'T00:00:00') : 'Seleccionar fecha'}
+              </Text>
+            </TouchableOpacity>
             {errors.endDate && <Text style={styles.fieldErr}>{errors.endDate.message}</Text>}
           </View>
           <View style={[styles.field, styles.halfField]}>
-            <Text style={styles.label}>Hora fin</Text>
-            <Controller control={control} name="endTime"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <RNTextInput style={[styles.input, errors.endTime && styles.inputErr]}
-                  placeholder="HH:MM" placeholderTextColor={T.inputPlaceholder}
-                  onBlur={onBlur} onChangeText={onChange} value={value} />
-              )} />
+            <Text style={styles.label}>Hora</Text>
+            <TouchableOpacity
+              style={[styles.input, errors.endTime && styles.inputErr]}
+              onPress={() => openPicker('endTime', 'time')}
+              activeOpacity={0.7}
+            >
+              <Text style={watchedEndTime ? styles.inputText : styles.placeholder}>
+                {watchedEndTime || 'Seleccionar hora'}
+              </Text>
+            </TouchableOpacity>
             {errors.endTime && <Text style={styles.fieldErr}>{errors.endTime.message}</Text>}
           </View>
         </View>
@@ -237,6 +323,23 @@ export function EventForm({ onClose, onSuccess, editEvent }: EventFormProps) {
             <Text style={styles.btnT}>{isEdit ? 'Guardar cambios' : 'Crear evento'}</Text>}
         </TouchableOpacity>
       </View>
+
+      {picker.visible && (
+        <DateTimePicker
+          value={
+            picker.mode === 'date'
+              ? parseDateValue(picker.field === 'startDate' ? watchedStartDate : watchedEndDate)
+              : parseTimeValue(
+                  picker.field === 'startTime' ? watchedStartTime : watchedEndTime,
+                  picker.field === 'startTime' ? watchedStartDate : watchedEndDate
+                )
+          }
+          mode={picker.mode}
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={onPickerChange}
+          onTouchCancel={() => setPicker((prev) => ({ ...prev, visible: false }))}
+        />
+      )}
     </ScrollView>
   );
 }
@@ -248,7 +351,9 @@ const styles = StyleSheet.create({
   errorText: { color: T.error, fontSize: 13 },
   field: { gap: 5 },
   label: { ...Typography.label, color: T.textSecondary, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
-  input: { backgroundColor: T.inputBg, borderWidth: 1.5, borderColor: T.inputBorder, borderRadius: Sizes.radiusMd, padding: 14, fontSize: 15, color: T.inputText },
+  input: { backgroundColor: T.inputBg, borderWidth: 1.5, borderColor: T.inputBorder, borderRadius: Sizes.radiusMd, padding: 14, fontSize: 15, color: T.inputText, justifyContent: 'center' },
+  inputText: { color: T.inputText, fontSize: 15 },
+  placeholder: { color: T.inputPlaceholder, fontSize: 15 },
   textArea: { minHeight: 100 },
   inputErr: { borderColor: T.error },
   fieldErr: { color: T.error, fontSize: 12 },

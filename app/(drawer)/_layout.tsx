@@ -41,7 +41,13 @@ function CustomDrawerContent() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.closeBtn}
-          onPress={() => router.back()}
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(drawer)/(tabs)');
+            }
+          }}
         >
           <Text style={styles.closeBtnText}>✕</Text>
         </TouchableOpacity>

@@ -52,6 +52,12 @@ function mapTutoriaToBackendDto(input: Omit<Tutoria, 'id' | 'createdAt' | 'updat
     docente: input.subject,
     oficina: input.location ?? '',
     informacion: input.description ?? input.title,
+    titulo: input.title,
+    fecha: input.date,
+    duracion: input.duration,
+    cupo_maximo: input.maxStudents,
+    estado: input.status,
+    creado_por: input.createdBy || undefined,
     horarios: (input.horarios && input.horarios.length > 0)
       ? input.horarios.map((h) => ({ dia: h.dia, horaInicio: h.horaInicio, horaFin: h.horaFin }))
       : [{ dia: 'Lunes', horaInicio: '08:00', horaFin: '10:00' }],
@@ -63,6 +69,12 @@ function mapTutoriaUpdateToBackendDto(input: Partial<Tutoria>): Record<string, u
   if (input.subject !== undefined) dto.docente = input.subject;
   if (input.location !== undefined) dto.oficina = input.location;
   if (input.description !== undefined || input.title !== undefined) dto.informacion = input.description ?? input.title;
+  if (input.title !== undefined) dto.titulo = input.title;
+  if (input.date !== undefined) dto.fecha = input.date;
+  if (input.duration !== undefined) dto.duracion = input.duration;
+  if (input.maxStudents !== undefined) dto.cupo_maximo = input.maxStudents;
+  if (input.status !== undefined) dto.estado = input.status;
+  if (input.createdBy !== undefined) dto.creado_por = input.createdBy;
   if (input.horarios !== undefined) {
     dto.horarios = input.horarios.map((h) => ({ dia: h.dia, horaInicio: h.horaInicio, horaFin: h.horaFin }));
   }

@@ -11,12 +11,15 @@ const AUTH_TOKEN_KEY = 'esfotgo_jwt_token';
 
 function mapEntityToDto(input: Partial<Event>): Record<string, unknown> {
   const dto: Record<string, unknown> = {};
-  if (input.title !== undefined) dto.titulo = input.title;
-  if (input.description !== undefined) dto.descripcion = input.description;
+  if (input.title !== undefined) dto.nombre = input.title;
+  if (input.description !== undefined) dto.informacion = input.description;
   if (input.imageUrl !== undefined) dto.imagen = input.imageUrl;
   if (input.location !== undefined) dto.ubicacion = input.location;
   if (input.category !== undefined) dto.categoria = input.category;
-  if (input.startDate !== undefined) dto.fecha_inicio = input.startDate;
+  if (input.startDate !== undefined) {
+    dto.fecha = input.startDate.slice(0, 10);
+    dto.hora = input.startDate.slice(11, 16);
+  }
   if (input.endDate !== undefined) dto.fecha_fin = input.endDate;
   if (input.organizer !== undefined) dto.organizador = input.organizer;
   return dto;
@@ -48,8 +51,9 @@ export class ExpressEventRepository implements IEventRepository {
   }
 
   async createEvent(input: Omit<Event, 'id' | 'createdAt' | 'updatedAt'>): Promise<Event> {
+    const t = await this.token();
     const dto = mapEntityToDto(input);
-    const { data, error } = await httpClient.post<EventDto>('/evento', dto);
+    const { data, error } = await httpClient.post<EventDto>('/admin/evento', dto, t);
     if (error || !data) throw apiError(error);
     return mapEventDtoToEvent(data);
   }

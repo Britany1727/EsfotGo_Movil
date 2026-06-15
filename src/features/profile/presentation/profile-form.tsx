@@ -1,8 +1,9 @@
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { View, Text, TextInput as RNTextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
-import Animated, { FadeIn, FadeOut, ZoomIn } from 'react-native-reanimated';
+import { View, Text, TextInput as RNTextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Image } from 'react-native';
+import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 import { useState, useCallback, useEffect } from 'react';
+import * as ImagePicker from 'expo-image-picker';
 import { updateProfileSchema } from '@/features/auth/domain/auth.schema';
 import type { UpdateProfileInput } from '@/features/auth/domain/auth.schema';
 import { UserEntity } from '@/features/auth/domain/user.entity';
@@ -19,30 +20,87 @@ export function ProfileForm() {
   const { user, isLoading, updateProfile } = useProfile();
   const secureLogout = useAuthStore((s) => s.secureLogout);
   const [ok, setOk] = useState<string | null>(null);
+  const [localAvatar, setLocalAvatar] = useState<string | null>(user?.avatarUrl ?? null);
   const ue = user ? new UserEntity(user) : null;
 
   const { control, handleSubmit, reset, formState: { errors, isDirty }, watch } = useForm<UpdateProfileInput>({
     resolver: zodResolver(updateProfileSchema), defaultValues: { fullName: user?.fullName ?? '', phone: user?.phone ?? '' },
   });
 
-  useEffect(() => { if (user) reset({ fullName: user.fullName ?? '', phone: user.phone ?? '' }); }, [user, reset]);
+  useEffect(() => { if (user) { reset({ fullName: user.fullName ?? '', phone: user.phone ?? '' }); setLocalAvatar(user.avatarUrl ?? null); } }, [user, reset]);
   const phone = watch('phone');
 
   const onSubmit = useCallback(async (d: UpdateProfileInput) => {
     setOk(null);
-    try { await updateProfile.mutateAsync({ fullName: d.fullName || undefined, phone: d.phone || undefined }); setOk('Perfil actualizado'); setTimeout(() => setOk(null), 3000); } catch { /* handled by mutation */ }
-  }, [updateProfile]);
+    try {
+      await updateProfile.mutateAsync({
+        fullName: d.fullName || undefined,
+        phone: d.phone || undefined,
+        avatarUrl: localAvatar,
+      });
+      setOk('Perfil actualizado');
+      setTimeout(() => setOk(null), 3000);
+    } catch { /* handled by mutation */ }
+  }, [updateProfile, localAvatar]);
 
   const logout = useCallback(() => {
     Alert.alert('Cerrar sesión', '¿Deseas cerrar sesión? Se eliminarán todos los datos locales.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Cerrar sesión', style: 'destructive', onPress: () => secureLogout() }]);
   }, [secureLogout]);
 
+  const handlePickAvatar = useCallback(() => {
+    Alert.alert('Foto de perfil', 'Selecciona una opción', [
+      {
+        text: 'Cámara',
+        onPress: async () => {
+          const perm = await ImagePicker.requestCameraPermissionsAsync();
+          if (!perm.granted) {
+            Alert.alert('Permiso denegado', 'Se necesita acceso a la cámara');
+            return;
+          }
+          const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.7,
+          });
+          if (!result.canceled && result.assets[0]) {
+            setLocalAvatar(result.assets[0].uri);
+          }
+        },
+      },
+      {
+        text: 'Galería',
+        onPress: async () => {
+          const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (!perm.granted) {
+            Alert.alert('Permiso denegado', 'Se necesita acceso a la galería');
+            return;
+          }
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.7,
+          });
+          if (!result.canceled && result.assets[0]) {
+            setLocalAvatar(result.assets[0].uri);
+          }
+        },
+      },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
+  }, []);
+
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={st.scroll} keyboardShouldPersistTaps="handled">
       <View style={st.root}>
         {/* Avatar */}
-        <View style={st.avatarSection}>
-          <View style={st.avatar}><Text style={st.avatarText}>{ue?.initials ?? 'U'}</Text></View>
+        <TouchableOpacity style={st.avatarSection} onPress={handlePickAvatar} activeOpacity={0.8}>
+          {localAvatar ? (
+            <Image source={{ uri: localAvatar }} style={st.avatarImage} />
+          ) : (
+            <View style={st.avatar}><Text style={st.avatarText}>{ue?.initials ?? 'U'}</Text></View>
+          )}
           <View style={st.avatarInfo}>
             <Text style={st.name}>{ue?.displayName ?? 'Usuario'}</Text>
             <Text style={st.email}>{user?.email}</Text>
@@ -51,7 +109,8 @@ export function ProfileForm() {
               <View style={st.verifiedBadge}><Text style={st.verifiedBadgeText}>✓ Verificado</Text></View>
             </View>
           </View>
-        </View>
+          <Text style={st.cameraHint}>📷</Text>
+        </TouchableOpacity>
 
         {updateProfile.isError && <Animated.View entering={FadeIn} style={st.err}><Text style={st.errT}>{(updateProfile.error as any)?.message ?? 'Error'}</Text></Animated.View>}
         {ok && <Animated.View entering={ZoomIn} style={st.ok}><Text style={st.okT}>{ok}</Text></Animated.View>}
@@ -83,13 +142,11 @@ export function ProfileForm() {
           </View>
         </View>
 
-        {isDirty && (
-          <Animated.View entering={FadeIn}>
-            <TouchableOpacity style={[st.btn, (isLoading || updateProfile.isPending) && st.btnOff]} onPress={handleSubmit(onSubmit)} disabled={isLoading || updateProfile.isPending} activeOpacity={0.85}>
-              {isLoading || updateProfile.isPending ? <ActivityIndicator color={T.text} /> : <Text style={st.btnT}>Guardar cambios</Text>}
-            </TouchableOpacity>
-          </Animated.View>
-        )}
+        <Animated.View entering={FadeIn}>
+          <TouchableOpacity style={[st.btn, (isLoading || updateProfile.isPending) && st.btnOff]} onPress={handleSubmit(onSubmit)} disabled={isLoading || updateProfile.isPending} activeOpacity={0.85}>
+            {isLoading || updateProfile.isPending ? <ActivityIndicator color={T.text} /> : <Text style={st.btnT}>Guardar cambios</Text>}
+          </TouchableOpacity>
+        </Animated.View>
 
         {/* Security */}
         <View style={st.section}>
@@ -112,7 +169,9 @@ const st = StyleSheet.create({
   avatarSection: { flexDirection: 'row', alignItems: 'center', gap: 16, backgroundColor: T.surfaceGlass, borderRadius: Sizes.radiusLg, padding: Sizes.paddingLg, borderWidth: 1, borderColor: T.cardBorder, ...Shadows.md },
   avatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: T.primary, justifyContent: 'center', alignItems: 'center' },
   avatarText: { color: T.text, fontSize: 24, fontWeight: '800' },
+  avatarImage: { width: 64, height: 64, borderRadius: 32, borderWidth: 2, borderColor: T.primaryMuted },
   avatarInfo: { flex: 1, gap: 3 },
+  cameraHint: { fontSize: 20 },
   name: { ...Typography.h4, color: T.textPrimary },
   email: { fontSize: 13, color: T.textSecondary },
   badges: { flexDirection: 'row', gap: 8, marginTop: 4 },

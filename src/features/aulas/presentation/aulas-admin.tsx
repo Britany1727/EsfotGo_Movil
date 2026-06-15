@@ -97,6 +97,9 @@ export function AulasAdmin() {
           ) : null
         }
         removeClippedSubviews
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        initialNumToRender={10}
       />
 
       <Modal

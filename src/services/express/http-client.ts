@@ -196,11 +196,15 @@ export class HttpClient {
       const status = error.response?.status ?? 0;
       const responseData = error.response?.data as Record<string, unknown> | undefined;
 
-      const message =
+      let message =
         (responseData?.msg as string) ??
         (responseData?.message as string) ??
         (responseData?.error as string) ??
         error.message;
+
+      if (message.includes('buffering timed out')) {
+        message = 'Servidor temporalmente no disponible';
+      }
 
       if (error.code === 'ECONNABORTED') {
         return { data: null, error: 'La solicitud excedió el tiempo de espera.', status: 0 };
@@ -211,6 +215,11 @@ export class HttpClient {
       }
 
       return { data: null, error: message, status };
+    }
+
+    const err = error as Error;
+    if (err?.message?.includes('buffering timed out')) {
+      return { data: null, error: 'Servidor temporalmente no disponible', status: 0 };
     }
 
     return { data: null, error: 'Error inesperado al comunicarse con el servidor.', status: 0 };

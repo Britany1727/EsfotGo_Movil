@@ -26,9 +26,19 @@ export class MongoBulkUploadRepository implements BulkUploadRepository {
     formData.append('tipo', TIPO_MAP[target]);
     const blob = await fetch(fileUri).then((r) => r.blob());
     formData.append('file', blob, fileName);
-    const { data, error } = await httpClient.upload<UploadResult>('/admin/upload', formData, token);
+    const { data, error } = await httpClient.upload<Record<string, unknown>>('/admin/upload', formData, token);
     if (error || !data) throw new Error(error ?? 'Error desconocido al cargar los datos.');
-    return data;
+    // Backend returns { ok, totalFilas, guardados, errores[] } — map to UploadResult
+    return {
+      total: (data.totalFilas as number) ?? 0,
+      inserted: (data.guardados as number) ?? 0,
+      failed: ((data.errores as unknown[])?.length) ?? 0,
+      errors: (data.errores as unknown[])?.map((e: unknown, i: number) => ({
+        index: i,
+        row: (e as Record<string, unknown>)?.row ?? {},
+        reason: (e as Record<string, unknown>)?.reason as string ?? 'Error desconocido',
+      })) ?? [],
+    };
   }
 }
 

@@ -218,6 +218,10 @@ export default function AdminUsersScreen() {
             </View>
           ) : null
         }
+        removeClippedSubviews
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        initialNumToRender={10}
       />
 
       {totalPages > 1 && (

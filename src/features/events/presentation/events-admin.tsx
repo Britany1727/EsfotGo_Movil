@@ -69,6 +69,9 @@ export function EventsAdmin() {
         onRefresh={() => refetch()}
         ListEmptyComponent={!isLoading ? <EmptyState icon={Calendar} title="No hay eventos" description="No se han encontrado eventos próximos." /> : null}
         removeClippedSubviews
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        initialNumToRender={10}
       />
 
       <Modal
