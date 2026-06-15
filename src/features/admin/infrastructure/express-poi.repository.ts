@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { expressClient } from '@/services/express/api-client';
+import { httpClient } from '@/services/http-client';
 import { AppError, NotFoundError } from '@/core/errors/app-error';
 import type { CampusLocation } from '@/features/map/domain/location.entity';
 import type { PoiInput, PoiUpdateInput, RestrictedZone } from '@/features/admin/domain/poi.entity';
@@ -82,13 +82,13 @@ export class ExpressPoiRepository {
 
   async getAll(): Promise<CampusLocation[]> {
     if (isDevMode()) return MockData.getCampusLocations();
-    const { data, error } = await expressClient.get<LocationDto[]>('/mapa/ubicaciones');
+    const { data, error } = await httpClient.get<LocationDto[]>('/mapa/ubicaciones');
     if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     return (data ?? []).map(mapDtoToLocation);
   }
 
   async getById(id: string): Promise<CampusLocation> {
-    const { data, error } = await expressClient.get<LocationDto>(`/mapa/ubicacion/${id}`);
+    const { data, error } = await httpClient.get<LocationDto>(`/mapa/ubicacion/${id}`);
     if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     if (!data) throw new NotFoundError('POI no encontrado');
     return mapDtoToLocation(data);
@@ -99,7 +99,7 @@ export class ExpressPoiRepository {
       return { id: `mock-${Date.now()}`, name: input.name, description: input.description ?? null, category: input.category, latitude: input.latitude, longitude: input.longitude, imageUrl: input.imageUrl ?? null, createdAt: new Date().toISOString() };
     }
     const t = await this.token();
-    const { data, error } = await expressClient.post<LocationDto>('/admin/mapa/ubicaciones', {
+    const { data, error } = await httpClient.post<LocationDto>('/admin/mapa/ubicaciones', {
       nombre: input.name, descripcion: input.description, categoria: input.category,
       latitud: input.latitude, longitud: input.longitude, imagen: input.imageUrl,
     }, t);
@@ -117,7 +117,7 @@ export class ExpressPoiRepository {
     if (input.latitude !== undefined) payload.latitud = input.latitude;
     if (input.longitude !== undefined) payload.longitud = input.longitude;
     if (input.imageUrl !== undefined) payload.imagen = input.imageUrl;
-    const { data, error } = await expressClient.put<LocationDto>(`/admin/mapa/ubicaciones/${id}`, payload, t);
+    const { data, error } = await httpClient.put<LocationDto>(`/admin/mapa/ubicaciones/${id}`, payload, t);
     if (error || !data) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     return mapDtoToLocation(data);
   }
@@ -125,13 +125,13 @@ export class ExpressPoiRepository {
   async delete(id: string, _userId: string): Promise<void> {
     if (isDevMode()) return;
     const t = await this.token();
-    const { error } = await expressClient.delete(`/admin/mapa/ubicaciones/${id}`, t);
+    const { error } = await httpClient.delete(`/admin/mapa/ubicaciones/${id}`, t);
     if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
   }
 
   async getZones(): Promise<RestrictedZone[]> {
     if (isDevMode()) return [];
-    const { data, error } = await expressClient.get<ZoneDto[]>('/admin/mapa/zonas');
+    const { data, error } = await httpClient.get<ZoneDto[]>('/admin/mapa/zonas');
     if (error) return [];
     return (data ?? []).map(mapDtoToZone);
   }
@@ -139,7 +139,7 @@ export class ExpressPoiRepository {
   async createZone(zone: Omit<RestrictedZone, 'id' | 'createdAt' | 'updatedAt'>): Promise<RestrictedZone> {
     if (isDevMode()) return { ...zone, id: `mock-${Date.now()}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
     const t = await this.token();
-    const { data, error } = await expressClient.post<ZoneDto>('/admin/mapa/zonas', {
+    const { data, error } = await httpClient.post<ZoneDto>('/admin/mapa/zonas', {
       nombre: zone.name, descripcion: zone.description, coordenadas: zone.coordinates,
       fill_color: zone.fillColor, stroke_color: zone.strokeColor, activo: zone.isActive,
     }, t);
@@ -151,7 +151,7 @@ export class ExpressPoiRepository {
     if (isDevMode()) return { id, name: '', description: '', coordinates: [], fillColor: '', strokeColor: '', isActive: true, createdAt: '', updatedAt: '', ...input };
     const t = await this.token();
     const dto = mapZoneToDto(input);
-    const { data, error } = await expressClient.put<ZoneDto>(`/admin/mapa/zonas/${id}`, dto, t);
+    const { data, error } = await httpClient.put<ZoneDto>(`/admin/mapa/zonas/${id}`, dto, t);
     if (error || !data) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     return mapDtoToZone(data);
   }
@@ -159,7 +159,7 @@ export class ExpressPoiRepository {
   async deleteZone(id: string): Promise<void> {
     if (isDevMode()) return;
     const t = await this.token();
-    const { error } = await expressClient.delete(`/admin/mapa/zonas/${id}`, t);
+    const { error } = await httpClient.delete(`/admin/mapa/zonas/${id}`, t);
     if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
   }
 

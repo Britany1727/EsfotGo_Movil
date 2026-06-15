@@ -1,4 +1,4 @@
-import { expressClient } from '@/services/express/api-client';
+import { httpClient } from '@/services/http-client';
 import type { BulkUploadRepository } from '../domain/bulk-upload.repository';
 import type { BulkUploadTarget, UploadResult } from '../domain/bulk-upload.entity';
 import type { UserRowInput, PoiRowInput } from '../domain/bulk-upload.schema';
@@ -26,7 +26,7 @@ export class MongoBulkUploadRepository implements BulkUploadRepository {
     formData.append('tipo', TIPO_MAP[target]);
     const blob = await fetch(fileUri).then((r) => r.blob());
     formData.append('file', blob, fileName);
-    const { data, error } = await expressClient.upload<UploadResult>('/admin/upload', formData, token);
+    const { data, error } = await httpClient.upload<UploadResult>('/admin/upload', formData, token);
     if (error || !data) throw new Error(error ?? 'Error desconocido al cargar los datos.');
     return data;
   }

@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import { ExpressAuthRepository } from '@/services/express/express-repositories';
-import type { ExpressUser, ExpressLoginInput, ExpressProfileResult } from '@/services/express/express-types';
+import type { ExpressUser, ExpressLoginInput } from '@/services/express/express-types';
 
-const EXPRESS_TOKEN_KEY = 'epn_express_token';
+const EXPRESS_TOKEN_KEY = 'esfotgo_jwt_token';
 const EXPRESS_USER_KEY = 'epn_express_user';
 
 interface ExpressAuthState {
@@ -23,24 +23,6 @@ interface ExpressAuthState {
 
 const authRepo = new ExpressAuthRepository();
 
-async function fetchProfile(token: string): Promise<ExpressUser> {
-  const res = await authRepo.getProfile(token);
-  if (res.error || !res.data) {
-    console.log('[ExpressAuth] Error al obtener perfil:', res.error);
-    throw new Error(res.error ?? 'Error al obtener perfil');
-  }
-  const p = res.data as unknown as ExpressProfileResult;
-  return {
-    _id: p._id,
-    nombre: p.nombre,
-    apellido: p.apellido,
-    email: p.email,
-    telefono: p.telefono,
-    rol: (p.rol as ExpressUser['rol']) ?? 'estudiante',
-    imagen: p.imagen,
-  };
-}
-
 async function doLogin(
   loginFn: (input: ExpressLoginInput) => ReturnType<typeof authRepo.loginEstudiante>,
   input: ExpressLoginInput,
@@ -55,9 +37,20 @@ async function doLogin(
     }
 
     const token = res.data.token;
-    console.log('[ExpressAuth] Token recibido, obteniendo perfil...');
+    if (!token) throw new Error('Token no recibido del servidor');
 
-    const user = await fetchProfile(token);
+    // El login ya devuelve todos los campos del perfil — no es necesario GET /perfil
+    const raw = res.data as unknown as Record<string, unknown>;
+    const user: ExpressUser = {
+      _id: (raw._id as string) ?? '',
+      nombre: (raw.nombre as string) ?? '',
+      apellido: raw.apellido as string | undefined,
+      email: (raw.email as string) ?? input.email,
+      telefono: raw.telefono as string | undefined,
+      rol: (raw.rol as ExpressUser['rol']) ?? 'estudiante',
+      imagen: raw.imagen as string | undefined,
+    };
+
     console.log('[ExpressAuth] Login exitoso:', user.email);
 
     await SecureStore.setItemAsync(EXPRESS_TOKEN_KEY, token);

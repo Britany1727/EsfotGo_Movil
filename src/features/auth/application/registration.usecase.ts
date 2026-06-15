@@ -51,11 +51,10 @@ export class RegisterUserUseCase {
 
   private validatePasswordStrength(password: string): void {
     const checks = [
-      { test: () => password.length >= 8, msg: 'Mínimo 8 caracteres' },
+      { test: () => password.length >= 12, msg: 'Mínimo 12 caracteres' },
       { test: () => /[A-Z]/.test(password), msg: 'Al menos una mayúscula' },
       { test: () => /[a-z]/.test(password), msg: 'Al menos una minúscula' },
       { test: () => /[0-9]/.test(password), msg: 'Al menos un número' },
-      { test: () => /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password), msg: 'Al menos un carácter especial' },
     ];
 
     const failures = checks.filter((c) => !c.test()).map((c) => c.msg);

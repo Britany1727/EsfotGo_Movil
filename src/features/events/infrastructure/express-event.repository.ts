@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { expressClient } from '@/services/express/api-client';
+import { httpClient } from '@/services/http-client';
 import { AppError, NotFoundError } from '@/core/errors/app-error';
 import type { Event } from '../domain/event.entity';
 import type { IEventRepository } from '../domain/event.repository';
@@ -34,14 +34,14 @@ export class ExpressEventRepository implements IEventRepository {
   async getEvents(page: number = 1, pageSize: number = 10, search?: string): Promise<PaginatedResponse<Event>> {
     const params = new URLSearchParams({ page: String(page), limit: String(pageSize) });
     if (search) params.set('search', search);
-    const { data, error } = await expressClient.get<EventDto[]>(`/eventos?${params.toString()}`);
+    const { data, error } = await httpClient.get<EventDto[]>(`/eventos?${params.toString()}`);
     if (error) throw apiError(error);
     const items = (data ?? []).map(mapEventDtoToEvent);
     return { data: items, count: items.length, page, pageSize };
   }
 
   async getEventById(id: string): Promise<Event> {
-    const { data, error } = await expressClient.get<EventDto>(`/verevento/${id}`);
+    const { data, error } = await httpClient.get<EventDto>(`/verevento/${id}`);
     if (error) throw apiError(error);
     if (!data) throw new NotFoundError('Evento no encontrado');
     return mapEventDtoToEvent(data);
@@ -49,7 +49,7 @@ export class ExpressEventRepository implements IEventRepository {
 
   async createEvent(input: Omit<Event, 'id' | 'createdAt' | 'updatedAt'>): Promise<Event> {
     const dto = mapEntityToDto(input);
-    const { data, error } = await expressClient.post<EventDto>('/evento', dto);
+    const { data, error } = await httpClient.post<EventDto>('/evento', dto);
     if (error || !data) throw apiError(error);
     return mapEventDtoToEvent(data);
   }
@@ -57,14 +57,14 @@ export class ExpressEventRepository implements IEventRepository {
   async updateEvent(id: string, input: Partial<Event>): Promise<Event> {
     const t = await this.token();
     const dto = mapEntityToDto(input);
-    const { data, error } = await expressClient.put<EventDto>(`/admin/actualizarevento/${id}`, dto, t);
+    const { data, error } = await httpClient.put<EventDto>(`/admin/actualizarevento/${id}`, dto, t);
     if (error || !data) throw apiError(error);
     return mapEventDtoToEvent(data);
   }
 
   async deleteEvent(id: string): Promise<void> {
     const t = await this.token();
-    const { error } = await expressClient.delete(`/admin/eliminarevento/${id}`, t);
+    const { error } = await httpClient.delete(`/admin/eliminarevento/${id}`, t);
     if (error) throw apiError(error);
   }
 }

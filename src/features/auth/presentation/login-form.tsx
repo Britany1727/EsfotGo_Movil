@@ -95,14 +95,13 @@ export function LoginForm() {
         }
 
         // Sync main auth store so AuthGuard recognizes the session
-        const roleMap: Record<
-          string,
-          "estudiante" | "docente" | "administrador"
-        > = {
+        const roleMap: Record<string, "estudiante" | "docente" | "administrador" | "gestor"> = {
           user: "estudiante",
           estudiante: "estudiante",
           docente: "docente",
           admin: "administrador",
+          administrador: "administrador",
+          gestor: "gestor",
         };
         setSession(
           {

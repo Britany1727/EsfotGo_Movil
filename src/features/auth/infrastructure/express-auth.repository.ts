@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { expressClient } from '@/services/express/api-client';
+import { httpClient } from '@/services/http-client';
 import { AuthError } from '@/core/errors/app-error';
 import type { User } from '@/core/types';
 import type { IAuthRepository, RegistrationResult } from '../domain/auth.repository';
@@ -11,14 +11,33 @@ const AUTH_TOKEN_KEY = 'esfotgo_jwt_token';
 const AUTH_USER_KEY = 'esfotgo_jwt_user';
 const AUTH_REFRESH_KEY = 'esfotgo_jwt_refresh';
 
-interface LoginResponse { token: string; user: UserDto; refreshToken?: string; }
-interface RegisterResponse { msg: string; emailConfirmationRequired?: boolean; user?: UserDto; }
-interface ProfileResponse { _id: string; nombre: string; apellido?: string; email: string; telefono?: string; rol?: string; imagen?: string; }
+// Backend returns flat fields inside data: { _id, nombre, apellido, email, rol, token, refreshToken }
+// No "user" subobject — all fields are at the top level of the unwrapped payload
+interface LoginResponse extends UserDto {
+  token: string;
+  refreshToken?: string;
+}
+
+interface RegisterResponse {
+  msg?: string;
+  emailConfirmationRequired?: boolean;
+  user?: { _id: string };
+}
+
+interface ProfileResponse {
+  _id: string;
+  nombre: string;
+  apellido?: string;
+  email: string;
+  telefono?: string;
+  rol?: string;
+  imagen?: string;
+}
 
 export class ExpressAuthRepository implements IAuthRepository {
   async signIn(input: LoginInput): Promise<{ user: User; token: string }> {
     console.log('[ExpressRepo] signIn:', input.email);
-    const { data, error } = await expressClient.post<LoginResponse>(
+    const { data, error } = await httpClient.post<LoginResponse>(
       '/estudiantes/login',
       { email: input.email.toLowerCase().trim(), password: input.password }
     );
@@ -27,17 +46,30 @@ export class ExpressAuthRepository implements IAuthRepository {
       throw new AuthError(error ?? 'Credenciales inválidas');
     }
     console.log('[ExpressRepo] signIn exitoso');
-    await SecureStore.setItemAsync(AUTH_TOKEN_KEY, data.token);
-    if (data.refreshToken) {
-      await SecureStore.setItemAsync(AUTH_REFRESH_KEY, data.refreshToken);
+
+    const token = data.token;
+    const refreshToken = data.refreshToken;
+
+    if (!token) {
+      throw new AuthError('Token no recibido del servidor');
     }
-    await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(data.user));
-    return { user: mapUserDtoToUser(data.user), token: data.token };
+
+    // Guardar tokens en SecureStore (nunca undefined)
+    await SecureStore.setItemAsync(AUTH_TOKEN_KEY, token);
+    if (refreshToken) {
+      await SecureStore.setItemAsync(AUTH_REFRESH_KEY, refreshToken);
+    }
+
+    // data contiene todos los campos de UserDto planos (sin subobjeto "user")
+    const user = mapUserDtoToUser(data as unknown as UserDto);
+    await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(user));
+
+    return { user, token };
   }
 
   async signUp(input: RegisterInput): Promise<RegistrationResult> {
     console.log('[ExpressRepo] signUp:', input.email, input.nombre, input.apellido);
-    const { data, error } = await expressClient.post<RegisterResponse>(
+    const { data, error } = await httpClient.post<RegisterResponse>(
       '/estudiantes/registro',
       {
         email: input.email.toLowerCase().trim(),
@@ -52,6 +84,7 @@ export class ExpressAuthRepository implements IAuthRepository {
       throw new AuthError(error ?? 'Error al registrar');
     }
     console.log('[ExpressRepo] signUp exitoso');
+    // Register response keeps "user" subobject with _id
     const user: User = {
       id: data.user?._id ?? '',
       email: input.email.toLowerCase().trim(),
@@ -67,7 +100,7 @@ export class ExpressAuthRepository implements IAuthRepository {
 
   async signUpDocente(input: RegisterInput): Promise<RegistrationResult> {
     console.log('[ExpressRepo] signUpDocente:', input.email);
-    const { data, error } = await expressClient.post<RegisterResponse>(
+    const { data, error } = await httpClient.post<RegisterResponse>(
       '/docente/registro',
       {
         email: input.email.toLowerCase().trim(),
@@ -96,7 +129,7 @@ export class ExpressAuthRepository implements IAuthRepository {
   }
 
   async resendVerificationEmail(email: string): Promise<void> {
-    await expressClient.post('/estudiantes/reenviar-verificacion', { email });
+    await httpClient.post('/estudiantes/reenviar-verificacion', { email });
   }
 
   async checkEmailVerification(_email: string): Promise<boolean> {
@@ -120,12 +153,12 @@ export class ExpressAuthRepository implements IAuthRepository {
         console.log('[ExpressRepo] getSession: sin token');
         return null;
       }
-      const { data, error } = await expressClient.get<ProfileResponse>('/perfil', token);
+      const { data, error } = await httpClient.get<ProfileResponse>('/perfil', token);
       if (error || !data) {
         console.log('[ExpressRepo] getSession: error al obtener perfil:', error, '— usando datos locales');
         if (userJson) {
-          const stored = JSON.parse(userJson) as unknown as UserDto;
-          return { user: mapUserDtoToUser(stored), token };
+          const stored = JSON.parse(userJson) as User;
+          return { user: stored, token };
         }
         return null;
       }
@@ -148,7 +181,7 @@ export class ExpressAuthRepository implements IAuthRepository {
       payload.apellido = parts.slice(1).join(' ') || '';
     }
     if (input.phone) payload.telefono = input.phone;
-    const { data, error } = await expressClient.put<ProfileResponse>(`/actualizarperfil/${userId}`, payload, token);
+    const { data, error } = await httpClient.put<ProfileResponse>(`/actualizarperfil/${userId}`, payload, token);
     if (error || !data) {
       console.log('[ExpressRepo] updateProfile error:', error);
       throw new AuthError(error ?? 'Error al actualizar perfil');
@@ -159,7 +192,7 @@ export class ExpressAuthRepository implements IAuthRepository {
   async changePassword(currentPassword: string, newPassword: string): Promise<void> {
     const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
     console.log('[ExpressRepo] changePassword');
-    const { error } = await expressClient.put('/actualizarperfil/cambiar-password', { currentPassword, newPassword }, token);
+    const { error } = await httpClient.put('/actualizarperfil/cambiar-password', { currentPassword, newPassword }, token);
     if (error) {
       console.log('[ExpressRepo] changePassword error:', error);
       throw new AuthError(error);
@@ -167,12 +200,12 @@ export class ExpressAuthRepository implements IAuthRepository {
   }
 
   async recoverPassword(email: string): Promise<void> {
-    const { error } = await expressClient.post('/estudiantes/recuperar-password', { email });
+    const { error } = await httpClient.post('/estudiantes/recuperar-password', { email });
     if (error) throw new AuthError(error);
   }
 
   async verifyResetToken(token: string): Promise<boolean> {
-    const { data, error } = await expressClient.get<{ msg: string }>(`/recuperarpassword/${token}`);
+    const { data, error } = await httpClient.get<{ msg: string }>(`/recuperarpassword/${token}`);
     if (error || !data) {
       console.log('[ExpressRepo] verifyResetToken: token inválido:', error);
       return false;
@@ -181,7 +214,7 @@ export class ExpressAuthRepository implements IAuthRepository {
   }
 
   async resetPassword(token: string, password: string, confirmPassword: string): Promise<void> {
-    const { error } = await expressClient.post(`/nuevopassword/${token}`, {
+    const { error } = await httpClient.post(`/nuevopassword/${token}`, {
       password,
       confirmPassword,
     });
@@ -197,7 +230,7 @@ export class ExpressAuthRepository implements IAuthRepository {
       }
 
       console.log('[ExpressRepo] refreshSession: llamando /auth/refresh');
-      const { data, error } = await expressClient.post<{ token: string; refreshToken?: string }>(
+      const { data, error } = await httpClient.post<{ token: string; refreshToken?: string }>(
         '/auth/refresh',
         { refreshToken }
       );
@@ -208,7 +241,9 @@ export class ExpressAuthRepository implements IAuthRepository {
       }
 
       await SecureStore.setItemAsync(AUTH_TOKEN_KEY, data.token);
-      if (data.refreshToken) await SecureStore.setItemAsync(AUTH_REFRESH_KEY, data.refreshToken);
+      if (data.refreshToken) {
+        await SecureStore.setItemAsync(AUTH_REFRESH_KEY, data.refreshToken);
+      }
 
       const user = await this.getSession();
       if (user) return { user: user.user, token: data.token };

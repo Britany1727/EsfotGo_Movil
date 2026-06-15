@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { expressClient } from '@/services/express/api-client';
+import { httpClient } from '@/services/http-client';
 import { AppError } from '@/core/errors/app-error';
 import type { Tutoria, TutoriaEnrollment } from '../domain/tutoria.entity';
 import { isDevMode } from '@/core/config/env';
@@ -78,13 +78,13 @@ export class ExpressTutoriaRepository {
 
   async getAll(): Promise<Tutoria[]> {
     if (isDevMode()) return [];
-    const { data, error } = await expressClient.get<TutoriaResponseDto[]>('/admin/tutorias');
+    const { data, error } = await httpClient.get<TutoriaResponseDto[]>('/admin/tutorias');
     if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     return (data ?? []).map(mapDtoToTutoria);
   }
 
   async getById(id: string): Promise<Tutoria> {
-    const { data, error } = await expressClient.get<TutoriaResponseDto>(`/admin/tutorias/${id}`);
+    const { data, error } = await httpClient.get<TutoriaResponseDto>(`/admin/tutorias/${id}`);
     if (error || !data) throw new AppError(error ?? 'Tutoría no encontrada', 'API_ERROR');
     return mapDtoToTutoria(data);
   }
@@ -92,7 +92,7 @@ export class ExpressTutoriaRepository {
   async create(input: Omit<Tutoria, 'id' | 'createdAt' | 'updatedAt' | 'enrolledCount'>): Promise<Tutoria> {
     const t = await this.token();
     const dto = mapTutoriaToBackendDto(input);
-    const { data, error } = await expressClient.post<TutoriaResponseDto>('/admin/tutoria', dto, t);
+    const { data, error } = await httpClient.post<TutoriaResponseDto>('/admin/tutoria', dto, t);
     if (error || !data) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     return mapDtoToTutoria(data);
   }
@@ -100,19 +100,19 @@ export class ExpressTutoriaRepository {
   async update(id: string, input: Partial<Tutoria>): Promise<Tutoria> {
     const t = await this.token();
     const dto = mapTutoriaUpdateToBackendDto(input);
-    const { data, error } = await expressClient.put<TutoriaResponseDto>(`/admin/tutoria/${id}`, dto, t);
+    const { data, error } = await httpClient.put<TutoriaResponseDto>(`/admin/tutoria/${id}`, dto, t);
     if (error || !data) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     return mapDtoToTutoria(data);
   }
 
   async delete(id: string): Promise<void> {
     const t = await this.token();
-    const { error } = await expressClient.delete(`/admin/tutoria/${id}`, t);
+    const { error } = await httpClient.delete(`/admin/tutoria/${id}`, t);
     if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
   }
 
   async getEnrollments(tutoriaId: string): Promise<TutoriaEnrollment[]> {
-    const { data, error } = await expressClient.get<Record<string, unknown>[]>(`/admin/tutoria/${tutoriaId}/inscripciones`);
+    const { data, error } = await httpClient.get<Record<string, unknown>[]>(`/admin/tutoria/${tutoriaId}/inscripciones`);
     if (error) return [];
     return (data ?? []).map((r) => ({
       id: r._id as string,
@@ -124,13 +124,13 @@ export class ExpressTutoriaRepository {
 
   async enroll(tutoriaId: string, studentId: string): Promise<void> {
     const t = await this.token();
-    const { error } = await expressClient.post(`/admin/tutoria/${tutoriaId}/inscribir`, { estudiante_id: studentId }, t);
+    const { error } = await httpClient.post(`/admin/tutoria/${tutoriaId}/inscribir`, { estudiante_id: studentId }, t);
     if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
   }
 
   async unenroll(tutoriaId: string, studentId: string): Promise<void> {
     const t = await this.token();
-    const { error } = await expressClient.delete(`/admin/tutoria/${tutoriaId}/inscribir?estudiante_id=${studentId}`, t);
+    const { error } = await httpClient.delete(`/admin/tutoria/${tutoriaId}/inscribir?estudiante_id=${studentId}`, t);
     if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
   }
 

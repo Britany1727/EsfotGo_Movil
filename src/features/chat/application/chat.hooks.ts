@@ -49,7 +49,9 @@ export function useChat(): ChatHookResult {
     });
 
     socket.on('mensaje-recibido', (payload: { text: string; from: string; timestamp: string }) => {
-      setMessages((prev) => [...prev, { ...payload, isOwn: payload.from === username }]);
+      // Evitar duplicados: si el mensaje es propio, ya fue agregado optimísticamente en sendMessage
+      if (payload.from === username) return;
+      setMessages((prev) => [...prev, { ...payload, isOwn: false }]);
     });
 
     socket.on('usuarios-online', (count: number) => {

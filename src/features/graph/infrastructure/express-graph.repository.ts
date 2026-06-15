@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { expressClient } from '@/services/express/api-client';
+import { httpClient } from '@/services/http-client';
 import { AppError } from '@/core/errors/app-error';
 import type { IGraphRepository } from '../domain/graph.repository';
 import type { CampusGraph, GraphEdge, GraphNode } from '../domain/graph.entity';
@@ -58,8 +58,8 @@ export class ExpressGraphRepository implements IGraphRepository {
   async getGraph(): Promise<CampusGraph> {
     if (isDevMode()) return MockData.getBusRoutes().then(() => ({ nodes: [], edges: [] }));
     const [nodesRes, edgesRes] = await Promise.all([
-      expressClient.get<GraphNodeDto[]>('/mapa/grafo/nodos'),
-      expressClient.get<GraphEdgeDto[]>('/mapa/grafo/aristas'),
+      httpClient.get<GraphNodeDto[]>('/mapa/grafo/nodos'),
+      httpClient.get<GraphEdgeDto[]>('/mapa/grafo/aristas'),
     ]);
     if (nodesRes.error || edgesRes.error) return { nodes: [], edges: [] };
     return {
@@ -73,7 +73,7 @@ export class ExpressGraphRepository implements IGraphRepository {
     const t = await this.token();
     const payload: Record<string, unknown> = { label: node.label, latitude: node.latitude, longitude: node.longitude };
     if (node.id) payload._id = node.id;
-    const { data, error } = await expressClient.post<GraphNodeDto>('/admin/mapa/grafo/nodos', payload, t);
+    const { data, error } = await httpClient.post<GraphNodeDto>('/admin/mapa/grafo/nodos', payload, t);
     if (error || !data) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     return mapDtoToNode(data);
   }
@@ -81,7 +81,7 @@ export class ExpressGraphRepository implements IGraphRepository {
   async deleteNode(id: string): Promise<void> {
     if (isDevMode()) return;
     const t = await this.token();
-    const { error } = await expressClient.delete(`/admin/mapa/grafo/nodos/${id}`, t);
+    const { error } = await httpClient.delete(`/admin/mapa/grafo/nodos/${id}`, t);
     if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
   }
 
@@ -93,7 +93,7 @@ export class ExpressGraphRepository implements IGraphRepository {
       weight: edge.weight, blocked: edge.blocked, bidirectional: edge.bidirectional,
     };
     if (edge.id) payload._id = edge.id;
-    const { data, error } = await expressClient.post<GraphEdgeDto>('/admin/mapa/grafo/aristas', payload, t);
+    const { data, error } = await httpClient.post<GraphEdgeDto>('/admin/mapa/grafo/aristas', payload, t);
     if (error || !data) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     return mapDtoToEdge(data);
   }
@@ -105,7 +105,7 @@ export class ExpressGraphRepository implements IGraphRepository {
     if (patch.weight !== undefined) payload.weight = patch.weight;
     if (patch.blocked !== undefined) payload.blocked = patch.blocked;
     if (patch.bidirectional !== undefined) payload.bidirectional = patch.bidirectional;
-    const { data, error } = await expressClient.put<GraphEdgeDto>(`/admin/mapa/grafo/aristas/${id}`, payload, t);
+    const { data, error } = await httpClient.put<GraphEdgeDto>(`/admin/mapa/grafo/aristas/${id}`, payload, t);
     if (error || !data) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
     return mapDtoToEdge(data);
   }
@@ -113,7 +113,7 @@ export class ExpressGraphRepository implements IGraphRepository {
   async deleteEdge(id: string): Promise<void> {
     if (isDevMode()) return;
     const t = await this.token();
-    const { error } = await expressClient.delete(`/admin/mapa/grafo/aristas/${id}`, t);
+    const { error } = await httpClient.delete(`/admin/mapa/grafo/aristas/${id}`, t);
     if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
   }
 }

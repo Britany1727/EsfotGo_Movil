@@ -1,10 +1,8 @@
 // ============================================================
 // Unified HTTP Client — Single export for all repositories
 // ============================================================
-// Migrate imports gradually:
-//   import { httpClient } from '@/services/http-client';
-// Legacy code still works with:
-//   import { expressClient } from '@/services/express/api-client';
+// All repositories now use httpClient (axios with refresh token).
+// Token is auto-attached via interceptor, no need to pass manually.
 // ============================================================
 
 import { HttpClient } from '@/services/express/http-client';

@@ -16,6 +16,17 @@ export interface ApiResponse<T> {
   status: number;
 }
 
+function unwrapResponse<T>(raw: unknown): { data: T | null; error: string | null; consumed: boolean } {
+  if (raw && typeof raw === 'object' && 'success' in raw) {
+    const wrapped = raw as { success: boolean; data: unknown; message?: string };
+    if (!wrapped.success) {
+      return { data: null, error: wrapped.message ?? 'Error del servidor', consumed: true };
+    }
+    return { data: wrapped.data as T, error: null, consumed: true };
+  }
+  return { data: raw as T, error: null, consumed: false };
+}
+
 export class ApiClient {
   private baseUrl: string;
 
@@ -44,18 +55,26 @@ export class ApiClient {
       });
 
       const contentType = response.headers.get('content-type');
-      let data: T | null = null;
+      let raw: unknown = null;
 
       if (contentType?.includes('application/json')) {
-        data = (await response.json()) as T;
+        raw = await response.json();
+      }
+
+      // Unwrap backend response wrapper { success, data, message }
+      const { data, error, consumed } = unwrapResponse<T>(raw);
+
+      if (consumed && error) {
+        console.log(`[ApiClient] ${config.method} ${config.path} → ${response.status} (wrapper error):`, error);
+        return { data: null, error, status: response.status };
       }
 
       console.log(`[ApiClient] ${config.method} ${config.path} → ${response.status}${!response.ok ? ' (error)' : ''}`);
 
       if (!response.ok) {
         const errorMsg =
-          (data as Record<string, unknown>)?.msg as string ??
-          (data as Record<string, unknown>)?.message as string ??
+          (raw as Record<string, unknown>)?.message as string ??
+          (raw as Record<string, unknown>)?.msg as string ??
           `Error ${response.status}`;
         console.log(`[ApiClient] Error body:`, errorMsg);
         return { data: null, error: errorMsg, status: response.status };

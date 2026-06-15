@@ -86,7 +86,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       await authService.restoreSession.execute(
         (user, token) => {
-          console.log('[AuthStore] Sesión restaurada para:', user.email);
+          console.log('[AuthStore] Sesión restaurada para usuario');
           initUser = user;
           initToken = token;
         },
@@ -123,7 +123,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signIn: async (input: LoginInput, rememberMe: boolean = false) => {
     set({ isLoading: true });
-    console.log('[AuthStore] signIn:', input.email, 'rememberMe:', rememberMe);
+    console.log('[AuthStore] signIn:', 'rememberMe:', rememberMe);
     try {
       if (isDevMode()) {
         console.log('[AuthStore] Modo dev — usando MockAuth');
@@ -133,7 +133,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       const result = await authService.signIn.execute(input);
-      console.log('[AuthStore] signIn exitoso:', result.user.email);
+      console.log('[AuthStore] signIn exitoso');
       set({ user: result.user, token: result.token, isSessionValid: true });
       await authService.persistSession.execute(rememberMe);
     } catch (err) {
@@ -146,7 +146,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signUp: async (input: RegisterInput, role: 'estudiante' | 'docente' = 'estudiante') => {
     set({ isLoading: true, registrationError: null });
-    console.log('[AuthStore] signUp:', input.email, 'role:', role);
+    console.log('[AuthStore] signUp:', 'role:', role);
     try {
       const result = await authService.registerUser.execute({
         email: input.email.toLowerCase().trim(),

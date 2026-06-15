@@ -20,6 +20,19 @@ export interface HttpConfig {
   onUnauthorized?: () => void;
 }
 
+// ─── Helpers ──────────────────────────────────────────────────
+
+function unwrapResponse<T>(raw: unknown): { data: T | null; error: string | null; consumed: boolean } {
+  if (raw && typeof raw === 'object' && 'success' in raw) {
+    const wrapped = raw as { success: boolean; data: unknown; message?: string };
+    if (!wrapped.success) {
+      return { data: null, error: wrapped.message ?? 'Error del servidor', consumed: true };
+    }
+    return { data: wrapped.data as T, error: null, consumed: true };
+  }
+  return { data: raw as T, error: null, consumed: false };
+}
+
 // ─── Cliente HTTP ─────────────────────────────────────────────
 
 export class HttpClient {
@@ -107,6 +120,35 @@ export class HttpClient {
     return this.request<T>('DELETE', path, undefined, token);
   }
 
+  async upload<T>(path: string, formData: FormData, token?: string | null): Promise<ApiResponse<T>> {
+    try {
+      console.log(`[HttpClient] UPLOAD ${path}`);
+      const headers: Record<string, string> = {
+        'Content-Type': 'multipart/form-data',
+      };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await this.instance.request<T>({
+        method: 'POST',
+        url: path,
+        data: formData,
+        headers,
+      });
+
+      const { data, error, consumed } = unwrapResponse<T>(response.data);
+      if (consumed && error) {
+        return { data: null, error, status: response.status };
+      }
+
+      return { data, error: null, status: response.status };
+    } catch (err) {
+      console.log(`[HttpClient] UPLOAD ${path} → ERROR:`, (err as Error)?.message ?? err);
+      return this.handleError<T>(err);
+    }
+  }
+
   // ─── Core ────────────────────────────────────────────────────
 
   private async request<T>(
@@ -130,8 +172,16 @@ export class HttpClient {
       });
 
       console.log(`[HttpClient] ${method} ${path} → ${response.status}`);
+
+      // Unwrap backend response wrapper { success, data, message }
+      const { data, error, consumed } = unwrapResponse<T>(response.data);
+
+      if (consumed && error) {
+        return { data: null, error, status: response.status };
+      }
+
       return {
-        data: response.data,
+        data,
         error: null,
         status: response.status,
       };
@@ -169,7 +219,6 @@ export class HttpClient {
   // ─── Refresh token ──────────────────────────────────────────
 
   private async refreshAuthToken(): Promise<string | null> {
-    // Evitar múltiples refresh simultáneos
     if (this.refreshPromise) return this.refreshPromise;
 
     this.refreshPromise = this._doRefresh();
@@ -187,19 +236,26 @@ export class HttpClient {
       }
 
       console.log('[HttpClient] _doRefresh: llamando endpoint de refresh...');
-      const response = await axios.post<{ token: string; refreshToken?: string }>(
+      const response = await axios.post<{ success: boolean; data: { token: string; refreshToken?: string }; message?: string }>(
         `${this.config.baseURL}${this.config.refreshEndpoint}`,
         { refreshToken }
       );
 
-      const newToken = response.data.token;
-      await SecureStore.setItemAsync(this.config.tokenKey, newToken);
-      if (response.data.refreshToken) {
-        await SecureStore.setItemAsync(this.config.refreshTokenKey, response.data.refreshToken);
+      // Unwrap backend wrapper
+      const { data, error } = unwrapResponse<{ token: string; refreshToken?: string }>(response.data);
+
+      if (error || !data?.token) {
+        console.log('[HttpClient] _doRefresh: error al unwrapar refresh:', error);
+        return null;
+      }
+
+      await SecureStore.setItemAsync(this.config.tokenKey, data.token);
+      if (data.refreshToken) {
+        await SecureStore.setItemAsync(this.config.refreshTokenKey, data.refreshToken);
       }
 
       console.log('[HttpClient] _doRefresh: token renovado exitosamente');
-      return newToken;
+      return data.token;
     } catch (err) {
       console.log('[HttpClient] _doRefresh: error al refrescar token:', (err as Error)?.message ?? err);
       return null;
@@ -208,7 +264,6 @@ export class HttpClient {
 
   // ─── Utilidades ─────────────────────────────────────────────
 
-  /** Permite acceder a la instancia Axios para configuraciones avanzadas */
   getAxiosInstance(): AxiosInstance {
     return this.instance;
   }

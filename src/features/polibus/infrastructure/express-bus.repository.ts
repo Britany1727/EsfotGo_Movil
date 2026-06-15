@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { expressClient } from '@/services/express/api-client';
+import { httpClient } from '@/services/http-client';
 import { mapSupabaseError } from '@/core/errors/app-error';
 import type { BusRoute, BusStop, BusLocation } from '../domain/route.entity';
 import type { IBusRepository } from '../domain/bus.repository';
@@ -17,28 +17,28 @@ export class ExpressBusRepository implements IBusRepository {
 
   async getRoutes(): Promise<BusRoute[]> {
     if (isDevMode()) return MockData.getBusRoutes();
-    const { data, error } = await expressClient.get<Record<string, unknown>[]>('/bus/rutas');
+    const { data, error } = await httpClient.get<Record<string, unknown>[]>('/bus/rutas');
     if (error) return [];
     return (data ?? []).map((r) => mapBusRouteDtoToBusRoute(r as BusRouteDto));
   }
 
   async getAllRoutes(): Promise<BusRoute[]> {
     if (isDevMode()) return MockData.getBusRoutes();
-    const { data, error } = await expressClient.get<Record<string, unknown>[]>('/admin/bus/rutas');
+    const { data, error } = await httpClient.get<Record<string, unknown>[]>('/admin/bus/rutas');
     if (error) return [];
     return (data ?? []).map((r) => mapBusRouteDtoToBusRoute(r as BusRouteDto));
   }
 
   async getRouteStops(routeId: string): Promise<BusStop[]> {
     if (isDevMode()) return MockData.getBusStops(routeId);
-    const { data, error } = await expressClient.get<Record<string, unknown>[]>(`/bus/paradas/${routeId}`);
+    const { data, error } = await httpClient.get<Record<string, unknown>[]>(`/bus/paradas/${routeId}`);
     if (error) return [];
     return (data ?? []).map((r) => mapBusStopDtoToBusStop(r as BusStopDto));
   }
 
   async getBusLocations(routeId: string): Promise<BusLocation[]> {
     if (isDevMode()) return MockData.getBusLocations(routeId);
-    const { data, error } = await expressClient.get<Record<string, unknown>[]>(`/bus/posiciones/${routeId}`);
+    const { data, error } = await httpClient.get<Record<string, unknown>[]>(`/bus/posiciones/${routeId}`);
     if (error) return [];
     return (data ?? []).map((r) => mapBusLocationDtoToBusLocation(r as BusLocationDto));
   }
@@ -46,7 +46,7 @@ export class ExpressBusRepository implements IBusRepository {
   async createRoute(input: Omit<BusRoute, 'id' | 'createdAt'>): Promise<BusRoute> {
     if (isDevMode()) return { ...input, id: `mock-${Date.now()}`, createdAt: new Date().toISOString() };
     const t = await this.token();
-    const { data, error } = await expressClient.post<Record<string, unknown>>('/admin/bus/rutas', {
+    const { data, error } = await httpClient.post<Record<string, unknown>>('/admin/bus/rutas', {
       nombre: input.name, descripcion: input.description, color: input.color, activo: input.isActive,
     }, t);
     if (error) throw mapSupabaseError(new Error(error));
@@ -66,7 +66,7 @@ export class ExpressBusRepository implements IBusRepository {
     if (input.description !== undefined) payload.descripcion = input.description;
     if (input.color !== undefined) payload.color = input.color;
     if (input.isActive !== undefined) payload.activo = input.isActive;
-    const { data, error } = await expressClient.put<Record<string, unknown>>(`/admin/bus/rutas/${id}`, payload, t);
+    const { data, error } = await httpClient.put<Record<string, unknown>>(`/admin/bus/rutas/${id}`, payload, t);
     if (error) throw mapSupabaseError(new Error(error));
     return mapBusRouteDtoToBusRoute(data! as BusRouteDto);
   }
@@ -74,14 +74,14 @@ export class ExpressBusRepository implements IBusRepository {
   async deleteRoute(id: string): Promise<void> {
     if (isDevMode()) return;
     const t = await this.token();
-    const { error } = await expressClient.delete(`/admin/bus/rutas/${id}`, t);
+    const { error } = await httpClient.delete(`/admin/bus/rutas/${id}`, t);
     if (error) throw mapSupabaseError(new Error(error));
   }
 
   async createStop(input: Omit<BusStop, 'id' | 'createdAt'>): Promise<BusStop> {
     if (isDevMode()) return { ...input, id: `mock-${Date.now()}`, createdAt: new Date().toISOString() };
     const t = await this.token();
-    const { data, error } = await expressClient.post<Record<string, unknown>>(`/admin/bus/paradas`, {
+    const { data, error } = await httpClient.post<Record<string, unknown>>(`/admin/bus/paradas`, {
       ruta_id: input.routeId, nombre: input.name, latitud: input.latitude, longitud: input.longitude, orden: input.stopOrder,
     }, t);
     if (error) throw mapSupabaseError(new Error(error));
@@ -96,7 +96,7 @@ export class ExpressBusRepository implements IBusRepository {
     if (input.latitude !== undefined) payload.latitud = input.latitude;
     if (input.longitude !== undefined) payload.longitud = input.longitude;
     if (input.stopOrder !== undefined) payload.orden = input.stopOrder;
-    const { data, error } = await expressClient.put<Record<string, unknown>>(`/admin/bus/paradas/${id}`, payload, t);
+    const { data, error } = await httpClient.put<Record<string, unknown>>(`/admin/bus/paradas/${id}`, payload, t);
     if (error) throw mapSupabaseError(new Error(error));
     return mapBusStopDtoToBusStop(data! as BusStopDto);
   }
@@ -104,7 +104,7 @@ export class ExpressBusRepository implements IBusRepository {
   async deleteStop(id: string): Promise<void> {
     if (isDevMode()) return;
     const t = await this.token();
-    const { error } = await expressClient.delete(`/admin/bus/paradas/${id}`, t);
+    const { error } = await httpClient.delete(`/admin/bus/paradas/${id}`, t);
     if (error) throw mapSupabaseError(new Error(error));
   }
 }

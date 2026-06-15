@@ -1,8 +1,10 @@
 import { z } from 'zod';
 
+const PRODUCTION_API_URL = 'https://esfotgo-componente-backend.vercel.app/api';
+
 const envSchema = z.object({
   EXPO_PUBLIC_DEV_MODE: z.string().optional().default('false'),
-  EXPO_PUBLIC_API_BASE_URL: z.string().optional().default('http://localhost:3000/api'),
+  EXPO_PUBLIC_API_BASE_URL: z.string().optional().default(PRODUCTION_API_URL),
 });
 
 export interface Env {
@@ -12,11 +14,11 @@ export interface Env {
 
 function loadEnv(): Env {
   let devMode = 'false';
-  let apiBaseUrl = 'http://localhost:3000/api';
+  let apiBaseUrl = PRODUCTION_API_URL;
 
   try {
     devMode = String(process.env.EXPO_PUBLIC_DEV_MODE ?? 'false');
-    apiBaseUrl = String(process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api');
+    apiBaseUrl = String(process.env.EXPO_PUBLIC_API_BASE_URL ?? PRODUCTION_API_URL);
   } catch {
     // Env vars not available at module evaluation time
   }
@@ -29,7 +31,7 @@ function loadEnv(): Env {
   if (!result.success) {
     return {
       EXPO_PUBLIC_DEV_MODE: 'false',
-      EXPO_PUBLIC_API_BASE_URL: 'http://localhost:3000/api',
+      EXPO_PUBLIC_API_BASE_URL: PRODUCTION_API_URL,
     };
   }
 
@@ -45,8 +47,8 @@ export const isDevMode = (): boolean => {
 export function validateEnvironment(): void {
   const errors: string[] = [];
 
-  if (!env.EXPO_PUBLIC_API_BASE_URL || env.EXPO_PUBLIC_API_BASE_URL === 'http://localhost:3000/api') {
-    errors.push('EXPO_PUBLIC_API_BASE_URL no configurada o usa localhost');
+  if (!env.EXPO_PUBLIC_API_BASE_URL) {
+    errors.push('EXPO_PUBLIC_API_BASE_URL no configurada');
   }
   if (!process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY) {
     errors.push('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY no configurada — los mapas no funcionarán');
