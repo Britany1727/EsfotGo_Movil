@@ -192,7 +192,7 @@ export class ExpressAuthRepository implements IAuthRepository {
   async changePassword(currentPassword: string, newPassword: string): Promise<void> {
     const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
     console.log('[ExpressRepo] changePassword');
-    const { error } = await httpClient.put('/actualizarperfil/cambiar-password', { currentPassword, newPassword }, token);
+    const { error } = await httpClient.put('/actualizarperfil/cambiar-password', { passwordactual: currentPassword, passwordnuevo: newPassword }, token);
     if (error) {
       console.log('[ExpressRepo] changePassword error:', error);
       throw new AuthError(error);

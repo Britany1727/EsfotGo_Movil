@@ -4,9 +4,17 @@ import { useAuthStore } from '@/store/auth.store';
 import { env } from '@/core/config/env';
 import type { ChatMessage } from '../domain/chat.entity';
 
+export interface OnlineUser {
+  socketId: string;
+  nombre: string;
+  email: string;
+  rol: string;
+}
+
 export interface ChatHookResult {
   messages: ChatMessage[];
   isConnected: boolean;
+  onlineUsers: OnlineUser[];
   usersOnline: number;
   sendMessage: (text: string) => void;
   notification: string | null;
@@ -24,7 +32,7 @@ export function useChat(): ChatHookResult {
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isConnected, setIsConnected] = useState(false);
-  const [usersOnline, setUsersOnline] = useState(0);
+  const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [notification, setNotification] = useState<string | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
@@ -41,7 +49,7 @@ export function useChat(): ChatHookResult {
 
     socket.on('connect', () => {
       setIsConnected(true);
-      socket.emit('usuario-conectado', { username });
+      socket.emit('usuario-conectado', { nombre: user?.fullName || '', email: user?.email || '', rol: user?.role || '' });
     });
 
     socket.on('disconnect', () => {
@@ -54,8 +62,8 @@ export function useChat(): ChatHookResult {
       setMessages((prev) => [...prev, { ...payload, isOwn: false }]);
     });
 
-    socket.on('usuarios-online', (count: number) => {
-      setUsersOnline(count);
+    socket.on('usuarios-online', (users: OnlineUser[]) => {
+      setOnlineUsers(users);
     });
 
     socket.on('usuario-conectado', (data: { username: string }) => {
@@ -101,7 +109,8 @@ export function useChat(): ChatHookResult {
   return {
     messages,
     isConnected,
-    usersOnline,
+    onlineUsers,
+    usersOnline: onlineUsers.length,
     sendMessage,
     notification,
     clearNotification,
