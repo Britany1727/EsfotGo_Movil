@@ -1,73 +1,54 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Platform } from 'react-native';
-
-interface BatteryState {
-  level: number;
-  isLowPower: boolean;
-}
+import * as Battery from 'expo-battery';
 
 export function useBatteryOptimizer() {
-  const [battery, setBattery] = useState<BatteryState>({
-    level: 1,
-    isLowPower: false,
-  });
+  const [level, setLevel] = useState(1);
+  const [isLowPower, setIsLowPower] = useState(false);
 
   useEffect(() => {
-    if (Platform.OS === 'web') return;
+    Battery.getBatteryLevelAsync().then((l) => {
+      setLevel(l);
+      setIsLowPower(l < 0.2);
+    });
 
-    let interval: ReturnType<typeof setInterval> | null = null;
+    Battery.getPowerStateAsync().then((p) => {
+      if (p.lowPowerMode) setIsLowPower(true);
+    });
 
-    const checkBattery = async () => {
-      try {
-        if ('getBattery' in navigator) {
-          const batteryManager = await (
-            navigator as Navigator & {
-              getBattery?: () => Promise<{
-                level: number;
-                charging: boolean;
-                addEventListener: (t: string, cb: () => void) => void;
-              }>;
-            }
-          ).getBattery?.();
+    const levelSub = Battery.addBatteryLevelListener(({ batteryLevel }) => {
+      setLevel(batteryLevel);
+      setIsLowPower(batteryLevel < 0.2);
+    });
 
-          if (batteryManager) {
-            setBattery({
-              level: batteryManager.level,
-              isLowPower: batteryManager.level < 0.2 && !batteryManager.charging,
-            });
-          }
-        }
-      } catch {
-        // Battery API not available
-      }
-    };
-
-    checkBattery();
-    interval = setInterval(checkBattery, 60_000);
+    const powerSub = Battery.addBatteryStateListener(({ batteryState }) => {
+      setIsLowPower(batteryState === Battery.BatteryState.UNPLUGGED);
+    });
 
     return () => {
-      if (interval) clearInterval(interval);
+      levelSub.remove();
+      powerSub.remove();
     };
   }, []);
 
   const getThrottleMs = useCallback((): number => {
-    if (battery.level < 0.1) return 3000;
-    if (battery.level < 0.2) return 2000;
-    if (battery.level < 0.5) return 1000;
-    return 500;
-  }, [battery.level]);
+    if (isLowPower) return 5000;
+    if (level < 0.1) return 4000;
+    if (level < 0.2) return 3000;
+    if (level < 0.5) return 2500;
+    return 2000;
+  }, [level, isLowPower]);
 
   const shouldForceCluster = useCallback((): boolean => {
-    return battery.level < 0.15;
-  }, [battery.level]);
+    return level < 0.15 || isLowPower;
+  }, [level, isLowPower]);
 
   const shouldSkipAnimation = useCallback((): boolean => {
-    return battery.level < 0.1;
-  }, [battery.level]);
+    return level < 0.1 || isLowPower;
+  }, [level, isLowPower]);
 
   return {
-    batteryLevel: battery.level,
-    isLowPower: battery.isLowPower,
+    batteryLevel: level,
+    isLowPower,
     throttleMs: getThrottleMs(),
     getThrottleMs,
     shouldForceCluster,

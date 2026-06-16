@@ -1,6 +1,7 @@
 import * as Location from 'expo-location';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useBatteryOptimizer } from '@/features/map/services/battery-optimizer';
+import { useGpsPermission } from '@/hooks/use-gps-permission';
 import { isDevMode } from '@/core/config/env';
 
 interface UseLocationOptions {
@@ -12,6 +13,7 @@ interface UseLocationReturn {
   error: string | null;
   isWatching: boolean;
   retry: () => void;
+  permissionStatus: 'idle' | 'prompting' | 'granted' | 'denied' | 'blocked';
 }
 
 const DEV_MOCK_LOCATION: Location.LocationObject = {
@@ -27,6 +29,8 @@ const DEV_MOCK_LOCATION: Location.LocationObject = {
   timestamp: Date.now(),
 };
 
+const SPEED_THRESHOLD_MS = 2.78; // ~10 km/h
+
 export function useLocation(options?: UseLocationOptions): UseLocationReturn {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +40,9 @@ export function useLocation(options?: UseLocationOptions): UseLocationReturn {
   const subRef = useRef<Location.LocationSubscription | null>(null);
   const mountedRef = useRef(true);
   const lastUpdateRef = useRef(0);
+  const prevSpeedRef = useRef(0);
   const battery = useBatteryOptimizer();
+  const { status: permissionStatus } = useGpsPermission();
 
   const cleanup = useCallback(() => {
     try {
@@ -47,6 +53,32 @@ export function useLocation(options?: UseLocationOptions): UseLocationReturn {
     subRef.current = null;
   }, []);
 
+  const getGPSConfig = useCallback(() => {
+    const speed = prevSpeedRef.current ?? 0;
+
+    if (battery.isLowPower) {
+      return {
+        accuracy: Location.Accuracy.Low,
+        timeInterval: 5000,
+        distanceInterval: 15,
+      };
+    }
+
+    if (speed > SPEED_THRESHOLD_MS) {
+      return {
+        accuracy: Location.Accuracy.High,
+        timeInterval: 1000,
+        distanceInterval: 5,
+      };
+    }
+
+    return {
+      accuracy: Location.Accuracy.Balanced,
+      timeInterval: 2500,
+      distanceInterval: 8,
+    };
+  }, [battery.isLowPower]);
+
   const startWatching = useCallback(async () => {
     try {
       cleanup();
@@ -54,30 +86,35 @@ export function useLocation(options?: UseLocationOptions): UseLocationReturn {
       if (status !== 'granted') {
         if (mountedRef.current) {
           setError('Permiso de ubicación denegado');
+          setIsWatching(false);
         }
         return;
       }
 
+      const config = getGPSConfig();
       const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
+        accuracy: Location.Accuracy.Balanced,
       });
       if (mountedRef.current) {
         setLocation(loc);
         lastUpdateRef.current = Date.now();
+        if (loc.coords.speed != null) prevSpeedRef.current = loc.coords.speed;
       }
 
       subRef.current = await Location.watchPositionAsync(
         {
-          accuracy: battery.isLowPower
-            ? Location.Accuracy.Balanced
-            : Location.Accuracy.High,
-          distanceInterval: battery.isLowPower ? 15 : 5,
-          timeInterval: battery.throttleMs,
+          accuracy: config.accuracy,
+          distanceInterval: config.distanceInterval,
+          timeInterval: config.timeInterval,
         },
         (newLoc) => {
           const now = Date.now();
           if (now - lastUpdateRef.current < battery.throttleMs) return;
           lastUpdateRef.current = now;
+
+          if (newLoc.coords.speed != null) {
+            prevSpeedRef.current = newLoc.coords.speed;
+          }
 
           if (mountedRef.current) {
             setLocation(newLoc);
@@ -91,10 +128,11 @@ export function useLocation(options?: UseLocationOptions): UseLocationReturn {
       }
     } catch (e) {
       if (mountedRef.current) {
-        setError((e as Error).message ?? 'Error al obtener ubicación');
+        setError((e as Error).message ?? 'Error al obtener ubicacion');
+        setIsWatching(false);
       }
     }
-  }, [cleanup, battery.isLowPower, battery.throttleMs]);
+  }, [cleanup, battery.throttleMs, getGPSConfig]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -140,5 +178,5 @@ export function useLocation(options?: UseLocationOptions): UseLocationReturn {
     setError(null);
   }, []);
 
-  return { location, error, isWatching, retry };
+  return { location, error, isWatching, retry, permissionStatus };
 }

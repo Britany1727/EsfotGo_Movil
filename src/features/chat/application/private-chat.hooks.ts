@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '@/store/auth.store';
-import { useExpressAuthStore } from '@/services/express/express-auth.store';
+import { httpClient } from '@/services/http-client';
 import { env } from '@/core/config/env';
 import { PrivateChatRepository } from '../infrastructure/private-chat.repository';
 import type { PrivateMessage, Conversation } from '../domain/private-message.entity';
@@ -13,7 +13,6 @@ function getSocketUrl(): string {
 
 export function usePrivateChat(conversationId: string | null) {
   const user = useAuthStore((s) => s.user);
-  const expressToken = useExpressAuthStore((s) => s.expressToken);
   const username = user?.fullName?.trim() || user?.email?.split('@')[0] || 'Usuario';
 
   const [messages, setMessages] = useState<PrivateMessage[]>([]);
@@ -67,37 +66,48 @@ export function usePrivateChat(conversationId: string | null) {
   return { messages, isConnected, sendMessage };
 }
 
+interface ChatUser {
+  _id: string;
+  nombre: string;
+  apellido?: string;
+  email: string;
+  rol: string;
+}
+
 export function useUserList() {
-  const [users, setUsers] = useState<{ _id: string; nombre: string; apellido?: string; email: string; rol: string }[]>([]);
+  const [users, setUsers] = useState<ChatUser[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Fetch from existing user management endpoints
-    const token = useExpressAuthStore.getState().expressToken;
-    if (!token) return;
-
     setLoading(true);
     Promise.all([
-      fetch(`${env.EXPO_PUBLIC_API_BASE_URL}/admin/estudiantes`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then((r) => r.json()).catch(() => ({ data: [] })),
-      fetch(`${env.EXPO_PUBLIC_API_BASE_URL}/admin/docentes`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then((r) => r.json()).catch(() => ({ data: [] })),
+      httpClient.get<any[]>('/estudiantes').then((r) => (r.data ?? []) as any[]),
+      httpClient.get<any[]>('/docentes').then((r) => (r.data ?? []) as any[]),
     ]).then(([estRes, docRes]) => {
-      const est = (estRes.data || estRes || []) as any[];
-      const doc = (docRes.data || docRes || []) as any[];
+      const est = (estRes || []).map((u: any) => ({
+        _id: u._id ?? '',
+        nombre: u.nombre ?? '',
+        apellido: u.apellido,
+        email: u.email ?? '',
+        rol: 'estudiante',
+      }));
+      const doc = (docRes || []).map((u: any) => ({
+        _id: u._id ?? '',
+        nombre: u.nombre ?? '',
+        apellido: u.apellido,
+        email: u.email ?? '',
+        rol: 'docente',
+      }));
       setUsers([...doc, ...est]);
+    }).catch(() => {
+      // Silently handle — user list is non-critical
     }).finally(() => setLoading(false));
   }, []);
 
   const getConversation = useCallback(async (targetId: string) => {
-    const token = useExpressAuthStore.getState().expressToken;
-    if (!token) throw new Error('No autenticado');
     return PrivateChatRepository.getOrCreateConversation(
       useAuthStore.getState().user?.id ?? '',
       targetId,
-      token,
     );
   }, []);
 

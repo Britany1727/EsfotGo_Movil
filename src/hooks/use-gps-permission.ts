@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as Location from 'expo-location';
 import { useAuthStore } from '@/store/auth.store';
-import { Alert, Platform, Linking } from 'react-native';
+import { Platform, Linking } from 'react-native';
+import Toast from 'react-native-toast-message';
 
 interface GpsPermissionState {
   status: 'idle' | 'prompting' | 'granted' | 'denied' | 'blocked';
@@ -60,14 +61,13 @@ export function useGpsPermission(): GpsPermissionState {
         setGpsPermission(false);
 
         if (Platform.OS === 'ios') {
-          Alert.alert(
-            'Ubicación requerida',
-            'Para usar el mapa del campus y el seguimiento del Polibús, necesitamos acceso a tu ubicación. Actívalo en Configuración > Privacidad > Localización.',
-            [
-              { text: 'Ahora no', style: 'cancel' },
-              { text: 'Abrir Configuración', onPress: () => Linking.openSettings() },
-            ]
-          );
+          Toast.show({
+            type: 'info',
+            text1: 'Ubicacion requerida',
+            text2: 'Activa la ubicacion en Configuracion > Privacidad',
+            visibilityTime: 5000,
+            onPress: () => Linking.openSettings(),
+          });
         }
         return false;
       }
