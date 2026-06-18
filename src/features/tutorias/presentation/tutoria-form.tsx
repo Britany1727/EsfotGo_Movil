@@ -1,10 +1,13 @@
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { View, Text, TextInput as RNInput, Pressable, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import {
+  View, Text, TextInput as RNInput, Pressable, StyleSheet, ActivityIndicator, ScrollView, Platform,
+} from 'react-native';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { z } from 'zod';
 import { useState } from 'react';
 import * as Haptics from 'expo-haptics';
-import { X } from 'lucide-react-native';
+import { X, Calendar } from 'lucide-react-native';
 import type { Tutoria, Horario, TutoriaStatus } from '../domain/tutoria.entity';
 import { LightTheme as T, Sizes, Shadows, Typography } from '@/constants/design-system';
 
@@ -35,12 +38,34 @@ function emptyHorario(): Horario {
   return { dia: '', horaInicio: '', horaFin: '' };
 }
 
+function formatDateDisplay(isoStr: string): string {
+  if (!isoStr) return '';
+  const [y, m, d] = isoStr.split('-').map(Number);
+  if (!y || !m || !d) return isoStr;
+  const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  return `${d} ${months[m - 1] ?? ''} ${y}`;
+}
+
+function parseDateToISO(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function parseISOToDate(isoStr: string): Date {
+  const [y, m, d] = isoStr.split('-').map(Number);
+  if (!y || !m || !d) return new Date();
+  return new Date(y, m - 1, d);
+}
+
 export function TutoriaForm({ editData, onSubmit, isLoading }: TutoriaFormProps) {
   const [horarios, setHorarios] = useState<Horario[]>(
     editData?.horarios && editData.horarios.length > 0
       ? editData.horarios.map((h) => ({ ...h }))
       : [emptyHorario()]
   );
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const { control, handleSubmit, formState: { errors } } = useForm<TutoriaFormInput>({
     resolver: zodResolver(tutoriaSchema),
@@ -109,8 +134,35 @@ export function TutoriaForm({ editData, onSubmit, isLoading }: TutoriaFormProps)
         </Field>
         <View style={s.row}>
           <Field label="Fecha *" error={errors.date?.message} half>
-            <Controller control={control} name="date" render={({ field: { onChange, onBlur, value } }) => (
-              <RNInput style={[s.input, errors.date && s.inputErr]} placeholder="YYYY-MM-DD" placeholderTextColor={T.inputPlaceholder} onBlur={onBlur} onChangeText={onChange} value={value} />
+            <Controller control={control} name="date" render={({ field: { onChange, value } }) => (
+              <>
+                <Pressable
+                  style={[s.dateBtn, errors.date && s.dateBtnErr]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowDatePicker(true);
+                  }}
+                >
+                  <Calendar size={16} strokeWidth={2} color={value ? T.textPrimary : T.textTertiary} />
+                  <Text style={[s.dateBtnText, !value && s.dateBtnPlaceholder]}>
+                    {value ? formatDateDisplay(value) : 'Seleccionar fecha'}
+                  </Text>
+                </Pressable>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={value ? parseISOToDate(value) : new Date()}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'compact' : 'default'}
+                    onChange={(_evt: DateTimePickerEvent, selectedDate?: Date) => {
+                      if (Platform.OS !== 'ios') setShowDatePicker(false);
+                      if (selectedDate) {
+                        onChange(parseDateToISO(selectedDate));
+                        if (Platform.OS === 'ios') setShowDatePicker(false);
+                      }
+                    }}
+                  />
+                )}
+              </>
             )} />
           </Field>
           <Field label="Duración (min) *" error={errors.duration?.message} half>
@@ -201,6 +253,16 @@ const s = StyleSheet.create({
   },
   textArea: { minHeight: 80 },
   inputErr: { borderColor: T.error },
+  dateBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: T.inputBg, borderWidth: 1.5, borderColor: T.inputBorder,
+    borderRadius: Sizes.radiusSm, padding: 14,
+  },
+  dateBtnErr: { borderColor: T.error },
+  dateBtnText: {
+    fontSize: 15, color: T.inputText, flex: 1,
+  },
+  dateBtnPlaceholder: { color: T.inputPlaceholder },
   err: { ...Typography.caption, color: T.error },
   row: { flexDirection: 'row', gap: 12 },
   btn: {

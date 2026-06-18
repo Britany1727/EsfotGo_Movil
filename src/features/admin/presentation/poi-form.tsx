@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, ScrollView,
-  Pressable, StyleSheet, ActivityIndicator,
+  Pressable, StyleSheet, ActivityIndicator, Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import type { CampusLocation } from '@/features/map/domain/location.entity';
 import type { PoiInput, PoiUpdateInput } from '@/features/admin/domain/poi.entity';
 import { getAllCategories } from '@/features/map/application/map.hooks';
 import * as Haptics from 'expo-haptics';
 import { LightTheme as T, Sizes, Shadows, Typography } from '@/constants/design-system';
+import { Image as ImageIcon, X } from 'lucide-react-native';
 
 interface PoiFormProps {
   initialCoordinate?: { latitude: number; longitude: number };
@@ -29,9 +31,32 @@ export function PoiForm({
   const [name, setName] = useState(editingPoi?.name ?? '');
   const [description, setDescription] = useState(editingPoi?.description ?? '');
   const [category, setCategory] = useState(editingPoi?.category ?? 'academico');
+  const [imageUri, setImageUri] = useState<string | null>(editingPoi?.imageUrl ?? null);
   const categories = getAllCategories();
 
   const isEditing = !!editingPoi;
+
+  const pickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        setImageUri(result.assets[0].uri);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch {
+      // silently fail — image is optional
+    }
+  };
+
+  const removeImage = () => {
+    setImageUri(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
 
   const handleSubmit = () => {
     if (!name.trim()) return;
@@ -56,6 +81,8 @@ export function PoiForm({
         category,
         latitude: lat || editingPoi.latitude,
         longitude: lng || editingPoi.longitude,
+        imageUrl: imageUri ?? null,
+        mediaType: imageUri ? 'static' : null,
       });
     } else {
       onSubmit({
@@ -64,6 +91,8 @@ export function PoiForm({
         category,
         latitude: lat,
         longitude: lng,
+        imageUrl: imageUri ?? undefined,
+        mediaType: imageUri ? 'static' : undefined,
       });
     }
   };
@@ -73,6 +102,7 @@ export function PoiForm({
       setName(editingPoi.name);
       setDescription(editingPoi.description ?? '');
       setCategory(editingPoi.category);
+      setImageUri(editingPoi.imageUrl ?? null);
     }
   }, [editingPoi]);
 
@@ -131,6 +161,31 @@ export function PoiForm({
         </ScrollView>
       </View>
 
+      <View style={styles.field}>
+        <Text style={styles.label}>Imagen (Opcional)</Text>
+
+        {imageUri ? (
+          <View style={styles.previewContainer}>
+            <Image source={{ uri: imageUri }} style={styles.preview} resizeMode="cover" />
+            <View style={styles.previewActions}>
+              <Pressable style={styles.changeImageBtn} onPress={pickImage}>
+                <ImageIcon size={14} strokeWidth={2} color={T.primary} />
+                <Text style={styles.changeImageText}>Cambiar imagen</Text>
+              </Pressable>
+              <Pressable style={styles.removeImageBtn} onPress={removeImage}>
+                <X size={14} strokeWidth={2} color={T.error} />
+                <Text style={styles.removeImageText}>Quitar</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <Pressable style={styles.pickBtn} onPress={pickImage}>
+            <ImageIcon size={18} strokeWidth={1.8} color={T.textSecondary} />
+            <Text style={styles.pickBtnText}>Seleccionar imagen</Text>
+          </Pressable>
+        )}
+      </View>
+
       <View style={styles.actions}>
         <Pressable
           style={styles.cancelBtn}
@@ -186,6 +241,38 @@ const styles = StyleSheet.create({
   chipLetter: { fontSize: 11, fontWeight: '800' },
   chipText: { ...Typography.caption, color: T.textSecondary },
   chipTextActive: { color: '#FFFFFF' },
+  pickBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: T.inputBg, borderRadius: Sizes.radiusSm,
+    padding: 16, borderWidth: 1.5, borderColor: T.inputBorder,
+    borderStyle: 'dashed',
+  },
+  pickBtnText: { ...Typography.body, color: T.textSecondary },
+  previewContainer: {
+    gap: 10,
+  },
+  preview: {
+    width: '100%', height: 160,
+    borderRadius: Sizes.radiusMd,
+    backgroundColor: T.surface,
+  },
+  previewActions: {
+    flexDirection: 'row', gap: 10,
+  },
+  changeImageBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', gap: 6,
+    backgroundColor: T.primaryMuted, borderRadius: Sizes.radiusSm,
+    padding: 10, borderWidth: 1, borderColor: T.primary + '25',
+  },
+  changeImageText: { fontSize: 12, fontWeight: '600', color: T.primary },
+  removeImageBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', gap: 6,
+    backgroundColor: T.errorBg, borderRadius: Sizes.radiusSm,
+    padding: 10, borderWidth: 1, borderColor: T.error + '20',
+  },
+  removeImageText: { fontSize: 12, fontWeight: '600', color: T.error },
   actions: { flexDirection: 'row', gap: 10, marginTop: 4 },
   cancelBtn: {
     flex: 1, padding: 14, borderRadius: Sizes.radiusSm,

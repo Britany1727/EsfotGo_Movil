@@ -7,6 +7,7 @@ export interface PoiInput {
   latitude: number;
   longitude: number;
   imageUrl?: string;
+  mediaType?: string;
 }
 
 export interface PoiUpdateInput {
@@ -15,7 +16,8 @@ export interface PoiUpdateInput {
   category?: string;
   latitude?: number;
   longitude?: number;
-  imageUrl?: string;
+  imageUrl?: string | null;
+  mediaType?: string | null;
 }
 
 export type ZoneRestrictionType = 'acceso_restringido' | 'construccion' | 'peatonal' | 'emergencia' | 'ambiental' | 'seguridad' | 'otro';
