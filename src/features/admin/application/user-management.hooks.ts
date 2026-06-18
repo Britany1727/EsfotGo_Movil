@@ -99,26 +99,25 @@ export function useManagedUsers() {
     },
     onMutate: async ({ user, updates }) => {
       await queryClient.cancelQueries({ queryKey: ['admin', 'users'] });
-      const previousData = queryClient.getQueriesData({ queryKey: ['admin', 'users'] });
-      queryClient.setQueriesData({ queryKey: ['admin', 'users'] }, (old: any) => {
-        if (!old?.pages) return old;
-        return {
-          ...old,
-          pages: old.pages.map((page: any) => ({
-            ...page,
-            data: page.data?.map((u: ManagedUser) =>
-              u._id === user._id ? { ...u, ...updates } : u
-            ),
-          })),
-        };
-      });
-      return { previousData };
+      const prevEstudiantes = queryClient.getQueryData<ManagedUser[]>(['admin', 'users', 'estudiantes']);
+      const prevDocentes = queryClient.getQueryData<ManagedUser[]>(['admin', 'users', 'docentes']);
+
+      const updateList = (list: ManagedUser[] | undefined) =>
+        list?.map((u) => (u._id === user._id ? { ...u, ...updates } : u));
+
+      queryClient.setQueryData(['admin', 'users', 'estudiantes'], updateList(prevEstudiantes));
+      queryClient.setQueryData(['admin', 'users', 'docentes'], updateList(prevDocentes));
+
+      return { prevEstudiantes, prevDocentes };
     },
     onError: (_err, _vars, context) => {
-      if (context?.previousData) {
-        context.previousData.forEach(([key, data]: any) => {
-          queryClient.setQueryData(key, data);
-        });
+      if (context) {
+        if (context.prevEstudiantes) {
+          queryClient.setQueryData(['admin', 'users', 'estudiantes'], context.prevEstudiantes);
+        }
+        if (context.prevDocentes) {
+          queryClient.setQueryData(['admin', 'users', 'docentes'], context.prevDocentes);
+        }
       }
     },
     onSettled: () => {

@@ -89,7 +89,7 @@ const s = StyleSheet.create({
     position: 'absolute',
     top: 0, left: 0, right: 0, bottom: 0,
     justifyContent: 'flex-end',
-    zIndex: 250,
+    zIndex: 998, elevation: 998,
   },
   backdrop: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,

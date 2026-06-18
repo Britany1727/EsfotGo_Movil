@@ -104,7 +104,7 @@ export function LocationDetailSheet({ location, onClose, onNavigate, onMoreInfo 
 const s = StyleSheet.create({
   overlay: {
     position: 'absolute', bottom: 0, left: 0, right: 0, top: 0,
-    justifyContent: 'flex-end', zIndex: 200,
+    justifyContent: 'flex-end', zIndex: 999, elevation: 999,
   },
   backdrop: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,

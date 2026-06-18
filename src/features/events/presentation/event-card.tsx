@@ -14,10 +14,15 @@ export const EventCard = memo(function EventCard({ event, onPress }: EventCardPr
   const d = new Date(event.startDate);
   const past = d < new Date();
   return (
-    <Pressable style={[s.card, past && s.past]} onPress={() => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      onPress?.(event);
-    }}>
+    <Pressable
+      style={[s.card, past && s.past]}
+      onPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        onPress?.(event);
+      }}
+      delayPressIn={100}
+      pressRetentionOffset={{ top: 10, bottom: 10, left: 10, right: 10 }}
+    >
       {event.imageUrl ? (
         <Image source={{ uri: event.imageUrl }} style={s.img} contentFit="cover" transition={300} />
       ) : (

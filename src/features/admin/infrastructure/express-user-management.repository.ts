@@ -9,6 +9,10 @@ function parseStatus(value: unknown): ManagedUserStatus {
   return 'activo';
 }
 
+function serializeStatus(status: ManagedUserStatus): boolean {
+  return status === 'activo';
+}
+
 export class ExpressUserManagementRepository {
   async getEstudiantes(token: string): Promise<ApiResponse<ManagedUser[]>> {
     if (isDevMode()) {
@@ -35,8 +39,12 @@ export class ExpressUserManagementRepository {
     data: Partial<ManagedUser>,
     token: string
   ): Promise<ApiResponse<{ msg: string }>> {
+    const payload = { ...data } as Record<string, unknown>;
+    if (typeof payload.status === 'string') {
+      payload.status = serializeStatus(payload.status as ManagedUserStatus);
+    }
     if (isDevMode()) return { data: { msg: 'Usuario actualizado' }, error: null, status: 200 };
-    return httpClient.put(`/admin/actualizarEstudiante/${id}`, data, token);
+    return httpClient.put(`/admin/actualizarEstudiante/${id}`, payload, token);
   }
 
   async updateDocente(
@@ -44,8 +52,12 @@ export class ExpressUserManagementRepository {
     data: Partial<ManagedUser>,
     token: string
   ): Promise<ApiResponse<{ msg: string }>> {
+    const payload = { ...data } as Record<string, unknown>;
+    if (typeof payload.status === 'string') {
+      payload.status = serializeStatus(payload.status as ManagedUserStatus);
+    }
     if (isDevMode()) return { data: { msg: 'Usuario actualizado' }, error: null, status: 200 };
-    return httpClient.put(`/admin/actualizardocente/${id}`, data, token);
+    return httpClient.put(`/admin/actualizardocente/${id}`, payload, token);
   }
 
   async deleteEstudiante(

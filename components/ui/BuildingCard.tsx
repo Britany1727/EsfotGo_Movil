@@ -49,6 +49,8 @@ export function BuildingCard({
       <Pressable
         style={({ pressed }) => [styles.card, pressed && { opacity: 0.92 }]}
         onPress={onPress}
+        delayPressIn={100}
+        pressRetentionOffset={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
         <View style={[styles.iconWrap, { backgroundColor: cfg.color + '14' }]}>
           <Text style={[styles.iconLetter, { color: cfg.color }]}>

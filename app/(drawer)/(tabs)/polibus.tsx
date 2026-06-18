@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
     borderColor: T.cardBorder,
     borderBottomWidth: 0,
     ...Shadows.xl,
-    maxHeight: 370,
+    maxHeight: '52%',
   },
   detailSection: { gap: 14, marginTop: 0 },
   detailStats: {

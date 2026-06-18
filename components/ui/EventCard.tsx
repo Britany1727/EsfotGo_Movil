@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef } from 'react';
 import {
   View, Text, Pressable, StyleSheet, Dimensions,
 } from 'react-native';
@@ -41,6 +41,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export function EventCard({ event, onPress, onAction, actionLabel }: EventCardProps) {
   const scale = useSharedValue(1);
+  const pressStartRef = useRef(0);
   const date = new Date(event.startDate);
   const day = date.getDate();
   const month = MONTHS[date.getMonth()] ?? '';
@@ -52,11 +53,14 @@ export function EventCard({ event, onPress, onAction, actionLabel }: EventCardPr
   }));
 
   const handlePressIn = () => {
+    pressStartRef.current = Date.now();
     scale.value = withSpring(0.97, { damping: 24, stiffness: 360 });
   };
 
   const handlePressOut = () => {
     scale.value = withSpring(1, { damping: 20, stiffness: 300 });
+    const duration = Date.now() - pressStartRef.current;
+    if (duration < 80) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onPress?.(event);
   };
@@ -70,6 +74,7 @@ export function EventCard({ event, onPress, onAction, actionLabel }: EventCardPr
       style={[styles.card, cardStyle]}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
+      pressRetentionOffset={{ top: 10, bottom: 10, left: 10, right: 10 }}
     >
       <View style={styles.imageWrap}>
         <Image
