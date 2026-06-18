@@ -4,6 +4,7 @@ import { useAuthStore } from '@/store/auth.store';
 import { httpClient } from '@/services/http-client';
 import { env } from '@/core/config/env';
 import { PrivateChatRepository } from '../infrastructure/private-chat.repository';
+import { NotificationService } from '@/core/notifications/notification.service';
 import type { PrivateMessage, Conversation } from '../domain/private-message.entity';
 
 function getSocketUrl(): string {
@@ -38,6 +39,13 @@ export function usePrivateChat(conversationId: string | null) {
 
     socket.on('private-message', (msg: PrivateMessage) => {
       setMessages((prev) => [...prev, msg]);
+      if (msg.senderName !== username) {
+        NotificationService.sendLocal(
+          'Nuevo mensaje',
+          `${msg.senderName}: ${msg.text}`,
+          { type: 'chat' },
+        );
+      }
     });
 
     socket.on('previous-messages', (msgs: PrivateMessage[]) => {

@@ -74,4 +74,11 @@ export const NotificationService = {
       foregroundSubscription.remove();
     };
   },
+
+  async sendLocal(title: string, body: string, data?: Record<string, unknown>) {
+    await Notifications.scheduleNotificationAsync({
+      content: { title, body, data: data ?? {} },
+      trigger: null,
+    });
+  },
 };

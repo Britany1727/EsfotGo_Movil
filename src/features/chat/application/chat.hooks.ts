@@ -4,6 +4,7 @@ import { useAuthStore } from '@/store/auth.store';
 import { env } from '@/core/config/env';
 import type { ChatMessage } from '../domain/chat.entity';
 import { ChatRepository } from '../infrastructure/chat.repository';
+import { NotificationService } from '@/core/notifications/notification.service';
 
 export interface OnlineUser {
   socketId: string;
@@ -101,6 +102,7 @@ export function useChat(): ChatHookResult {
     socket.on('mensaje-recibido', (payload: { text: string; from: string; timestamp: string }) => {
       if (payload.from === username) return;
       setMessages((prev) => [...prev, { ...payload, isOwn: false }]);
+      NotificationService.sendLocal('Chat General', `${payload.from}: ${payload.text}`);
     });
 
     socket.on('usuarios-online', (users: OnlineUser[]) => {

@@ -6,6 +6,7 @@ import { Navigation, Info, Star, XCircle } from 'lucide-react-native';
 import { getCategoryConfig } from '@/features/map/application/map.hooks';
 import type { CampusLocation } from '@/features/map/domain/location.entity';
 import { useFavoritesStore } from '@/store/favorites.store';
+import { useAuthStore } from '@/store/auth.store';
 import { LightTheme as T, Shadows, Sizes, Typography } from '@/constants/design-system';
 
 interface Props {
@@ -21,6 +22,8 @@ export function LocationDetailSheet({ location, onClose, onNavigate, onMoreInfo,
   const [routeActive, setRouteActive] = useState(false);
   const isFav = useFavoritesStore((s) => location ? s.isFavorite(location.id) : false);
   const toggleFavorite = useFavoritesStore((s) => s.toggleLocation);
+  const role = useAuthStore((s) => s.user?.role);
+  const canFav = role === 'administrador' || role === 'gestor' || role === 'docente';
 
   const snapPoints = useMemo(() => ['35%', '65%', '92%'], []);
 
@@ -99,14 +102,15 @@ export function LocationDetailSheet({ location, onClose, onNavigate, onMoreInfo,
               <Text style={[s.badgeT, { color: config.color }]}>{config.label}</Text>
             </View>
           </View>
-          <Pressable
-            style={s.favBtn}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              toggleFavorite(location);
-            }}
-            hitSlop={8}
-          >
+          {canFav && (
+            <Pressable
+              style={s.favBtn}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                toggleFavorite(location);
+              }}
+              hitSlop={8}
+            >
             <Star
               size={22}
               strokeWidth={isFav ? 0 : 2}
@@ -114,6 +118,7 @@ export function LocationDetailSheet({ location, onClose, onNavigate, onMoreInfo,
               color={isFav ? T.highlight : T.textTertiary}
             />
           </Pressable>
+          )}
         </View>
 
         {location.description && (

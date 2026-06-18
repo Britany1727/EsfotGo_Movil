@@ -6,8 +6,10 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { ChevronRight } from 'lucide-react-native';
+import { ChevronRight, Heart } from 'lucide-react-native';
 import type { BusRoute, BusStop } from '@/features/polibus/domain/route.entity';
+import { useFavoritesStore } from '@/store/favorites.store';
+import { useAuthStore } from '@/store/auth.store';
 import { LightTheme as T, Shadows, Sizes } from '@/constants/design-system';
 
 interface RouteSelectorProps {
@@ -34,6 +36,10 @@ function RouteCard({
   const animStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
+  const isFav = useFavoritesStore((s) => s.isRouteFavorite(route.id));
+  const toggleRouteFav = useFavoritesStore((s) => s.toggleRoute);
+  const role = useAuthStore((s) => s.user?.role);
+  const canFav = role === 'administrador' || role === 'gestor' || role === 'docente';
 
   return (
     <AnimatedPressable
@@ -58,6 +64,24 @@ function RouteCard({
       <View style={s.cardTop}>
         <View style={[s.dot, { backgroundColor: route.color }]} />
         <Text style={s.cardRouteLabel}>Ruta</Text>
+        {canFav && (
+          <Pressable
+            style={s.favBtn}
+            onPress={(e) => {
+              e.stopPropagation?.();
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              toggleRouteFav(route);
+            }}
+            hitSlop={8}
+          >
+            <Heart
+              size={18}
+              strokeWidth={isFav ? 0 : 2}
+              fill={isFav ? T.accent : 'transparent'}
+              color={isFav ? T.accent : T.textTertiary}
+            />
+          </Pressable>
+        )}
       </View>
       <Text style={s.cardName} numberOfLines={2}>{route.name}</Text>
       <View style={s.cardEndpoints}>
@@ -159,5 +183,10 @@ const s = StyleSheet.create({
   },
   badgeText: {
     fontSize: 10, fontWeight: '700', color: T.primary,
+  },
+  favBtn: {
+    marginLeft: 'auto',
+    width: 32, height: 32, borderRadius: 16,
+    justifyContent: 'center', alignItems: 'center',
   },
 });

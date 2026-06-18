@@ -4,6 +4,7 @@ import { ExpressEventRepository } from '../infrastructure/express-event.reposito
 import type { Event, EventDateFilter } from '../domain/event.entity';
 import { CreateEventUseCase, UpdateEventUseCase, DeleteEventUseCase, GetEventDetailUseCase } from './event.usecases';
 import { useAuthStore } from '@/store/auth.store';
+import { NotificationService } from '@/core/notifications/notification.service';
 import { isDevMode } from '@/core/config/env';
 import { MockData } from '@/core/dev/mock-services';
 
@@ -117,8 +118,13 @@ export function useCreateEvent() {
   return useMutation({
     mutationFn: (input: Omit<Event, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>) =>
       createEventUC.execute(user, input),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
+      NotificationService.sendLocal(
+        'Nuevo Evento',
+        variables.title,
+        { type: 'event', eventId: '' },
+      );
     },
   });
 }

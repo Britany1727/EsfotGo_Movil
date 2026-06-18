@@ -15,6 +15,7 @@ import { RouteCard, type Route } from '@/components/ui/RouteCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useFavoritesByType, useRemoveFavorite } from '@/features/favoritos/application/favorite.hooks';
 import { useFavoritesStore } from '@/store/favorites.store';
+import { useAuthStore } from '@/store/auth.store';
 import type { Favorite } from '@/features/favoritos/domain/favorite.entity';
 
 type FavTab = 'aulas' | 'edificios' | 'rutas' | 'ubicaciones';
@@ -44,11 +45,16 @@ function favoriteToRoute(f: Favorite): Route {
 
 export default function FavoritesScreen() {
   const router = useRouter();
+  const role = useAuthStore((s) => s.user?.role);
+  const canFav = role === 'administrador' || role === 'gestor' || role === 'docente';
+
   const [activeTab, setActiveTab] = useState<FavTab>('aulas');
   const { aulas, edificios, rutas, ubicaciones, total, isLoading, countByType } = useFavoritesByType();
   const removeFavorite = useRemoveFavorite();
   const localLocations = useFavoritesStore((s) => s.locations);
   const removeLocalLocation = useFavoritesStore((s) => s.removeLocation);
+  const localRoutes = useFavoritesStore((s) => s.routes);
+  const removeLocalRoute = useFavoritesStore((s) => s.removeRoute);
 
   const localAulas = localLocations.filter((l) => l.category === 'aulas');
   const localEdificios = localLocations.filter((l) => l.category === 'edificios');
@@ -61,9 +67,16 @@ export default function FavoritesScreen() {
     scrollY.value = e.contentOffset.y;
   });
 
-  const totalFavs = total + localLocations.length;
+  const totalFavs = total + localLocations.length + localRoutes.length;
 
   const handleRemoveFavorite = useCallback((tab: FavTab, id: string) => {
+    if (tab === 'rutas') {
+      const isLocalRoute = localRoutes.some((r) => r.id === id);
+      if (isLocalRoute) {
+        removeLocalRoute(id);
+        return;
+      }
+    }
     const localTargets =
       tab === 'aulas' ? localAulas :
       tab === 'edificios' ? localEdificios :
@@ -80,7 +93,7 @@ export default function FavoritesScreen() {
     const fav = items.find((f) => f.itemId === id);
     if (!fav) return;
     removeFavorite.mutate(fav.id);
-  }, [aulas, edificios, rutas, ubicaciones, removeFavorite, localAulas, localEdificios, localUbicaciones, removeLocalLocation]);
+  }, [aulas, edificios, rutas, ubicaciones, removeFavorite, localAulas, localEdificios, localUbicaciones, localRoutes, removeLocalLocation, removeLocalRoute]);
 
   const renderContent = () => {
     if (isLoading) {
@@ -92,8 +105,20 @@ export default function FavoritesScreen() {
     }
 
     if (activeTab === 'rutas') {
-      const routes = rutas.map(favoriteToRoute);
-      if (routes.length === 0) {
+      const apiRoutes = rutas.map(favoriteToRoute);
+      const allRoutes = [
+        ...apiRoutes,
+        ...localRoutes.map((r): Route => ({
+          id: r.id,
+          name: r.name,
+          origin: r.direction ?? '',
+          destination: '',
+          distanceMeters: r.distance ?? undefined,
+          estimatedMinutes: r.estimatedTime ?? undefined,
+          color: r.color,
+        })),
+      ];
+      if (allRoutes.length === 0) {
         return (
           <EmptyState
             icon={<Star size={36} strokeWidth={1.5} color={T.textTertiary} />}
@@ -107,7 +132,7 @@ export default function FavoritesScreen() {
       }
       return (
         <Animated.View entering={FadeInDown.duration(400)} style={styles.list}>
-          {routes.map((route, i) => (
+          {allRoutes.map((route, i) => (
             <RouteCard
               key={route.id}
               route={route}
@@ -190,7 +215,16 @@ export default function FavoritesScreen() {
         onAvatarPress={() => router.push('/profile' as any)}
       />
 
-      <Animated.ScrollView
+      {!canFav ? (
+        <View style={styles.restrictedWrap}>
+          <Star size={36} strokeWidth={1.5} color={T.textTertiary} />
+          <Text style={styles.restrictedTitle}>Favoritos no disponibles</Text>
+          <Text style={styles.restrictedSub}>
+            Solo administradores y docentes pueden usar favoritos
+          </Text>
+        </View>
+      ) : (
+        <Animated.ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -222,6 +256,7 @@ export default function FavoritesScreen() {
               const localCount =
                 tab.key === 'aulas' ? localAulas.length :
                 tab.key === 'edificios' ? localEdificios.length :
+                tab.key === 'rutas' ? localRoutes.length :
                 tab.key === 'ubicaciones' ? localUbicaciones.length : 0;
               const count = apiCount + localCount;
               const isActive = activeTab === tab.key;
@@ -256,6 +291,7 @@ export default function FavoritesScreen() {
 
         <View style={{ height: 100 }} />
       </Animated.ScrollView>
+      )}
     </View>
   );
 }
@@ -332,5 +368,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 80,
+  },
+  restrictedWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: Sizes.paddingXl,
+    gap: 12,
+  },
+  restrictedTitle: {
+    ...Typography.h4,
+    color: T.textSecondary,
+    textAlign: 'center',
+  },
+  restrictedSub: {
+    ...Typography.body,
+    color: T.textTertiary,
+    textAlign: 'center',
+    maxWidth: 260,
   },
 });
