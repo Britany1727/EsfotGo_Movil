@@ -296,6 +296,7 @@ export function BusRoutesAdmin() {
                         }}
                         pinColor={isStart ? '#10B981' : isEnd ? '#EF4444' : isOnRoute ? '#2563EB' : '#6B7280'}
                         title={node.label}
+                        zIndex={100}
                       />
                     );
                   })}

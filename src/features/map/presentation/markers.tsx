@@ -21,8 +21,10 @@ export const LocationMarker = memo(function LocationMarker({
       coordinate={marker.coordinate}
       title={marker.title}
       description={marker.description}
-      tracksViewChanges={tracksViewChanges}
+      tracksViewChanges={true}
       onPress={() => onPress?.(marker)}
+      anchor={{ x: 0.5, y: 1 }}
+      zIndex={100}
     >
       <View style={[s.marker, { backgroundColor: config.color }]}>
         <Text style={s.markerLetter}>{config.label.charAt(0)}</Text>
@@ -56,7 +58,7 @@ export const ClusterMarker = memo(function ClusterMarker({
   const config = getCategoryConfig(topCategory);
   const size = Math.min(56, 36 + count * 2);
   return (
-    <Marker coordinate={coordinate} identifier={id} onPress={onPress} tracksViewChanges={false}>
+    <Marker coordinate={coordinate} identifier={id} onPress={onPress} tracksViewChanges={true} anchor={{ x: 0.5, y: 0.5 }} zIndex={90}>
       <View style={[s.cluster, {
         width: size, height: size, borderRadius: size / 2,
         backgroundColor: config.color,
@@ -83,8 +85,9 @@ export const BusMarker = memo(function BusMarker({
       title={`Bus ${busId}`}
       rotation={heading}
       anchor={{ x: 0.5, y: 0.5 }}
-      tracksViewChanges={false}
+      tracksViewChanges={true}
       flat
+      zIndex={100}
     >
       <View style={[s.bus, { backgroundColor: routeColor }]}>
         <BusIcon size={16} strokeWidth={2.2} color="#FFFFFF" />
@@ -112,7 +115,9 @@ export const StopMarker = memo(function StopMarker({
       coordinate={coordinate}
       title={`${prefix}${name}`}
       description={`Parada ${stopNumber} de ${total}`}
-      tracksViewChanges={false}
+      tracksViewChanges={true}
+      anchor={{ x: 0.5, y: 0.5 }}
+      zIndex={80}
     >
       <View style={[s.stop, isFirst && s.stopFirst, isLast && s.stopLast]}>
         <Text style={[s.stopNum, (isFirst || isLast) && s.stopNumEnd]}>{stopNumber}</Text>
@@ -123,8 +128,8 @@ export const StopMarker = memo(function StopMarker({
 
 const s = StyleSheet.create({
   marker: {
-    paddingHorizontal: 10, paddingVertical: 7,
-    borderRadius: 10,
+    width: 36, height: 36, borderRadius: 12,
+    justifyContent: 'center', alignItems: 'center',
     borderWidth: 2.5, borderColor: '#FFFFFF',
     ...Shadows.md,
   },

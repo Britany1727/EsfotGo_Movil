@@ -54,8 +54,8 @@ export const UserMarker = memo(
         title="Mi ubicacion"
         rotation={showHeading ? (heading ?? 0) : 0}
         anchor={{ x: 0.5, y: 0.5 }}
-        tracksViewChanges={false}
-        flat
+        tracksViewChanges={true}
+        zIndex={200}
       >
         <PulseRing />
         <View style={styles.outer}>

@@ -20,9 +20,8 @@ export function BusMarker({ bus, color = T.primary }: Props) {
     <Marker
       coordinate={coord}
       anchor={{ x: 0.5, y: 0.5 }}
-      flat
       rotation={bus.heading}
-      tracksViewChanges={false}
+      tracksViewChanges={true}
       zIndex={100}
     >
       <View style={[styles.container, { backgroundColor: color }]}>

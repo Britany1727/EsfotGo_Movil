@@ -159,6 +159,7 @@ export default function AdminMapScreen() {
             coordinate={newCoordinate}
             pinColor="#FFB81C"
             title="Nueva ubicación"
+            zIndex={200}
           />
         )}
       </MapView>

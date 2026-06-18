@@ -235,6 +235,7 @@ export function ZonePanel({ zones, zLoading, createZone, updateZone, deleteZone 
                   coordinate={pt}
                   pinColor={i === 0 ? '#10B981' : '#F59E0B'}
                   title={`Punto ${i + 1}`}
+                  zIndex={100}
                 />
               ))}
 

@@ -225,6 +225,7 @@ export function GraphAdmin() {
                   coordinate={{ latitude: node.latitude, longitude: node.longitude }}
                   pinColor={editingNode?.id === node.id ? '#F59E0B' : '#6B7280'}
                   title={node.label}
+                  zIndex={100}
                 />
               ))}
 
@@ -233,6 +234,7 @@ export function GraphAdmin() {
                   coordinate={{ latitude: nLat, longitude: nLng }}
                   pinColor={editingNode ? '#F59E0B' : '#10B981'}
                   title={editingNode ? 'Nueva ubicación' : 'Ubicación seleccionada'}
+                  zIndex={200}
                 />
               )}
             </MapView>
@@ -331,6 +333,7 @@ export function GraphAdmin() {
                         pinColor={pinColor}
                         title={node.label}
                         description={isOrigin ? 'Origen' : isDest ? 'Destino' : undefined}
+                        zIndex={100}
                         onPress={() => {
                           if (!edgeSelectMode) return;
                           if (edgeSelectMode === 'origin') {

@@ -243,6 +243,16 @@ export default function MapScreen() {
             <UserMarker location={userLocation} />
           </>
         )}
+        {(route || graphRoute || osrmRoute) && (route?.waypoints.length ?? graphRoute?.waypoints.length ?? osrmRoute?.waypoints.length ?? 0) > 1 && (
+          <Polyline
+            coordinates={graphRoute ? graphRoute.waypoints : osrmRoute ? osrmRoute.waypoints : route!.waypoints}
+            strokeColor={graphRoute ? T.success : osrmRoute ? '#2563EB' : T.primary}
+            strokeWidth={graphRoute ? 6 : osrmRoute ? 5 : 5}
+            lineDashPattern={graphRoute ? undefined : osrmRoute ? undefined : [8, 6]}
+            lineCap="round"
+            lineJoin="round"
+          />
+        )}
         {clusters.map((item) =>
           isClusterPoint(item) ? (
             <ClusterMarker
@@ -264,16 +274,6 @@ export default function MapScreen() {
         {busLocations?.map((bus) => (
           <BusMarker key={bus.id} bus={bus} color={activeRoute?.color} />
         ))}
-        {(route || graphRoute || osrmRoute) && (route?.waypoints.length ?? graphRoute?.waypoints.length ?? osrmRoute?.waypoints.length ?? 0) > 1 && (
-          <Polyline
-            coordinates={graphRoute ? graphRoute.waypoints : osrmRoute ? osrmRoute.waypoints : route!.waypoints}
-            strokeColor={graphRoute ? T.success : osrmRoute ? '#2563EB' : T.primary}
-            strokeWidth={graphRoute ? 6 : osrmRoute ? 5 : 5}
-            lineDashPattern={graphRoute ? undefined : osrmRoute ? undefined : [8, 6]}
-            lineCap="round"
-            lineJoin="round"
-          />
-        )}
         {(route || graphRoute) && (
           <LocationMarker
             key="route-dest"
@@ -289,7 +289,7 @@ export default function MapScreen() {
               category: 'otro',
               clusterWeight: 0,
             }}
-            tracksViewChanges={false}
+            tracksViewChanges={true}
           />
         )}
       </MapView>
