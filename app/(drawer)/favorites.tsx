@@ -50,6 +50,12 @@ export default function FavoritesScreen() {
   const localLocations = useFavoritesStore((s) => s.locations);
   const removeLocalLocation = useFavoritesStore((s) => s.removeLocation);
 
+  const localAulas = localLocations.filter((l) => l.category === 'aulas');
+  const localEdificios = localLocations.filter((l) => l.category === 'edificios');
+  const localUbicaciones = localLocations.filter(
+    (l) => l.category !== 'aulas' && l.category !== 'edificios'
+  );
+
   const scrollY = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((e) => {
     scrollY.value = e.contentOffset.y;
@@ -58,12 +64,14 @@ export default function FavoritesScreen() {
   const totalFavs = total + localLocations.length;
 
   const handleRemoveFavorite = useCallback((tab: FavTab, id: string) => {
-    if (tab === 'ubicaciones') {
-      const isLocal = localLocations.some((f) => f.id === id);
-      if (isLocal) {
-        removeLocalLocation(id);
-        return;
-      }
+    const localTargets =
+      tab === 'aulas' ? localAulas :
+      tab === 'edificios' ? localEdificios :
+      tab === 'ubicaciones' ? localUbicaciones : [];
+    const isLocal = localTargets.some((f) => f.id === id);
+    if (isLocal) {
+      removeLocalLocation(id);
+      return;
     }
     const items =
       tab === 'aulas' ? aulas :
@@ -72,7 +80,7 @@ export default function FavoritesScreen() {
     const fav = items.find((f) => f.itemId === id);
     if (!fav) return;
     removeFavorite.mutate(fav.id);
-  }, [aulas, edificios, rutas, ubicaciones, removeFavorite, localLocations, removeLocalLocation]);
+  }, [aulas, edificios, rutas, ubicaciones, removeFavorite, localAulas, localEdificios, localUbicaciones, removeLocalLocation]);
 
   const renderContent = () => {
     if (isLoading) {
@@ -113,19 +121,29 @@ export default function FavoritesScreen() {
       );
     }
 
+    const localToBuilding = (loc: typeof localLocations[number]): Building => ({
+      id: loc.id,
+      name: loc.name,
+      category: loc.category,
+      description: loc.description ?? '',
+      code: '',
+    });
+
     const items =
-      activeTab === 'aulas' ? aulas.map(favoriteToBuilding) :
-      activeTab === 'edificios' ? edificios.map(favoriteToBuilding) :
-      activeTab === 'ubicaciones'
+      activeTab === 'aulas'
+        ? [
+            ...aulas.map(favoriteToBuilding),
+            ...localAulas.map(localToBuilding),
+          ]
+        : activeTab === 'edificios'
+        ? [
+            ...edificios.map(favoriteToBuilding),
+            ...localEdificios.map(localToBuilding),
+          ]
+        : activeTab === 'ubicaciones'
         ? [
             ...ubicaciones.map(favoriteToBuilding),
-            ...localLocations.map((loc): Building => ({
-              id: loc.id,
-              name: loc.name,
-              category: loc.category,
-              description: loc.description ?? '',
-              code: '',
-            })),
+            ...localUbicaciones.map(localToBuilding),
           ]
         : ubicaciones.map(favoriteToBuilding);
 
@@ -201,7 +219,11 @@ export default function FavoritesScreen() {
           >
             {TABS.map((tab) => {
               const apiCount = countByType[tab.key];
-              const count = tab.key === 'ubicaciones' ? apiCount + localLocations.length : apiCount;
+              const localCount =
+                tab.key === 'aulas' ? localAulas.length :
+                tab.key === 'edificios' ? localEdificios.length :
+                tab.key === 'ubicaciones' ? localUbicaciones.length : 0;
+              const count = apiCount + localCount;
               const isActive = activeTab === tab.key;
               return (
                 <Pressable
