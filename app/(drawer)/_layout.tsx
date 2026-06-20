@@ -29,8 +29,8 @@ function CustomDrawerContent() {
     { Icon: User, label: 'Mi Perfil', route: '/profile', color: T.primary },
     { Icon: CalendarDays, label: 'Mis Eventos', route: '/events', color: T.info },
     { Icon: Star, label: 'Favoritos', route: '/favorites', color: T.highlight },
-    { Icon: MapPin, label: 'Edificios', route: '/map', color: T.success },
-    { Icon: BookOpen, label: 'Aulas', route: '/map', color: T.info },
+    { Icon: MapPin, label: 'Edificios', route: '/buildings', color: T.success },
+    { Icon: BookOpen, label: 'Aulas', route: '/aulas', color: T.info },
     ...(isAdmin ? [
       { Icon: Shield, label: 'Panel Administrador', route: '/admin', color: T.accent },
       { Icon: Map, label: 'Mapa Admin', route: '/admin-map', color: T.primary },
@@ -142,6 +142,8 @@ export default function DrawerLayout() {
       <Drawer.Screen name="favorites" />
       <Drawer.Screen name="bulk-upload" />
       <Drawer.Screen name="chat" />
+      <Drawer.Screen name="aulas" />
+      <Drawer.Screen name="buildings" />
     </Drawer>
   );
 }

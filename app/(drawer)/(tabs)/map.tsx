@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState, useMemo } from 'react';
+import React, { useCallback, useRef, useState, useMemo, useEffect } from 'react';
 import {
   View, StyleSheet, Pressable, Platform, Text, ActivityIndicator,
 } from 'react-native';
@@ -41,6 +41,7 @@ import { OsrmRoutingRepository } from '@/features/map/infrastructure/osrm-routin
 import type { RoutingResult } from '@/features/map/domain/routing.repository';
 import { LightTheme as T, Shadows, Sizes, Typography } from '@/constants/design-system';
 import { MapPin, Navigation, X } from 'lucide-react-native';
+import { useLocalSearchParams } from 'expo-router';
 
 const MAP_PROVIDER = Platform.OS === 'ios' ? PROVIDER_DEFAULT : PROVIDER_GOOGLE;
 
@@ -53,6 +54,14 @@ const EPN_REGION: MapRegion = {
 
 function isClusterPoint(item: MapMarkerData | ClusterPoint): item is ClusterPoint {
   return 'count' in item && item.count > 1;
+}
+
+function haversineLocal(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 export default function MapScreen() {
@@ -73,6 +82,11 @@ export default function MapScreen() {
   const [osrmRoute, setOsrmRoute] = useState<RoutingResult | null>(null);
   const [fromNodeId, setFromNodeId] = useState<string | null>(null);
   const [toNodeId, setToNodeId] = useState<string | null>(null);
+  const [remainingDistance, setRemainingDistance] = useState<number | null>(null);
+  const fullRouteRef = useRef<GeoCoordinate[]>([]);
+
+  const params = useLocalSearchParams<{ locationId?: string }>();
+  const locationIdFromParams = params.locationId;
 
   const fabScale = useSharedValue(1);
   const fabAnimStyle = useAnimatedStyle(() => ({
@@ -135,6 +149,50 @@ export default function MapScreen() {
     }
   }, [optimalGraphRoute, campusGraph, fromNodeId, toNodeId, userLocation, selectedLocation]);
 
+  // Route tracking — trim waypoints as user walks
+  useEffect(() => {
+    const coords = graphRoute?.waypoints ?? route?.waypoints ?? osrmRoute?.waypoints;
+    if (!coords || coords.length < 2 || !userLocation) {
+      setRemainingDistance(null);
+      fullRouteRef.current = [];
+      return;
+    }
+
+    fullRouteRef.current = coords;
+    const userLat = userLocation.coords.latitude;
+    const userLng = userLocation.coords.longitude;
+
+    // Find first waypoint not yet passed (within 12m threshold)
+    const THRESHOLD_M = 12;
+    let trimIdx = 0;
+    let cumDist = 0;
+
+    for (let i = 0; i < coords.length - 1; i++) {
+      const d = haversineLocal(userLat, userLng, coords[i].latitude, coords[i].longitude);
+      if (d < THRESHOLD_M) trimIdx = i + 1;
+    }
+
+    // Calculate remaining distance
+    const remaining = trimIdx > 0 ? coords.slice(trimIdx) : coords;
+    for (let i = 0; i < remaining.length - 1; i++) {
+      cumDist += haversineLocal(
+        remaining[i].latitude, remaining[i].longitude,
+        remaining[i + 1].latitude, remaining[i + 1].longitude,
+      );
+    }
+    if (remaining.length > 0) {
+      cumDist += haversineLocal(userLat, userLng, remaining[0].latitude, remaining[0].longitude);
+    }
+
+    setRemainingDistance(Math.round(cumDist));
+
+    // If reached destination (<12m from last waypoint)
+    const last = coords[coords.length - 1];
+    if (haversineLocal(userLat, userLng, last.latitude, last.longitude) < THRESHOLD_M) {
+      setRemainingDistance(null);
+    }
+  }, [userLocation, graphRoute, route, osrmRoute]);
+
   const { data: busRoutes } = useBusRoutes();
   const activeRoute = busRoutes?.find((r) => r.isActive);
   const { data: busLocations } = useBusLocations(activeRoute?.id ?? '');
@@ -154,6 +212,33 @@ export default function MapScreen() {
     });
     computeRoute(marker.coordinate);
   }, [computeRoute]);
+
+  // Auto-select location from params (e.g., navigated from Aulas screen)
+  React.useEffect(() => {
+    if (!locationIdFromParams || clusters.length === 0) return;
+    const found = clusters.find(
+      (c): c is MapMarkerData => !isClusterPoint(c) && c.id === locationIdFromParams,
+    );
+    if (found) {
+      setSelectedLocation({
+        id: found.id, name: found.title,
+        description: found.description ?? null,
+        category: found.category,
+        latitude: found.coordinate.latitude,
+        longitude: found.coordinate.longitude,
+        imageUrl: found.imageUrl ?? null,
+        createdAt: '',
+      });
+      computeRoute(found.coordinate);
+      mapRef.current?.animateToRegion({
+        latitude: found.coordinate.latitude,
+        longitude: found.coordinate.longitude,
+        latitudeDelta: 0.004,
+        longitudeDelta: 0.004,
+      }, 500);
+    }
+  }, [locationIdFromParams, clusters]);
+
   const handleSelectLocation = useCallback((location: CampusLocation) => {
     setSelectedLocation(location);
     mapRef.current?.animateToRegion({
@@ -353,6 +438,25 @@ export default function MapScreen() {
         </Animated.View>
       )}
 
+      {/* Route tracking — remaining distance */}
+      {(graphRoute || route) && remainingDistance !== null && remainingDistance > 0 && (
+        <Animated.View
+          entering={FadeIn.duration(300)}
+          exiting={FadeOut.duration(200)}
+          style={styles.trackingBanner}
+        >
+          <View style={styles.trackingContent}>
+            <Navigation size={16} strokeWidth={2} color={T.primary} />
+            <Text style={styles.trackingValue}>
+              {remainingDistance >= 1000
+                ? `${(remainingDistance / 1000).toFixed(2)} km restantes`
+                : `${remainingDistance} m restantes`}
+            </Text>
+          </View>
+          <Text style={styles.trackingLabel}>Ruta interna del campus</Text>
+        </Animated.View>
+      )}
+
       {/* Map controls — right edge */}
       <View style={styles.rightControls}>
         <MapControls
@@ -502,5 +606,34 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
+  },
+  trackingBanner: {
+    position: 'absolute',
+    top: 130,
+    left: 16,
+    right: 16,
+    backgroundColor: T.surfaceGlass,
+    borderRadius: Sizes.radiusLg,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: T.primary + '30',
+    ...Shadows.lg,
+    zIndex: 200,
+  },
+  trackingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 2,
+  },
+  trackingValue: {
+    ...Typography.h4,
+    color: T.textPrimary,
+    fontSize: 16,
+  },
+  trackingLabel: {
+    ...Typography.caption,
+    color: T.textSecondary,
+    marginLeft: 24,
   },
 });

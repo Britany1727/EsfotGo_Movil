@@ -15,9 +15,12 @@ import { useChat } from '../application/chat.hooks';
 import type { ChatMessage } from '../domain/chat.entity';
 import { useAuthStore } from '@/store/auth.store';
 import { LightTheme as T, Typography, Sizes, Shadows } from '@/constants/design-system';
-import { Send, MessageCircle } from 'lucide-react-native';
+import { Send, MessageCircle, Inbox, Users } from 'lucide-react-native';
+import { ConversationsList } from './conversations-list';
 import { PrivateChatList } from './private-chat-list';
 import { PrivateChatRoom } from './private-chat-room';
+
+type ChatTab = 'inbox' | 'global' | 'contacts';
 
 export function ChatScreen() {
   const user = useAuthStore((s) => s.user);
@@ -31,7 +34,7 @@ export function ChatScreen() {
   const notifOpacity = useSharedValue(0);
   const pulseOpacity = useSharedValue(1);
 
-  const [activeTab, setActiveTab] = useState<'global' | 'private'>('global');
+  const [activeTab, setActiveTab] = useState<ChatTab>('global');
   const [privateRoom, setPrivateRoom] = useState<{ conversationId: string; userName: string } | null>(null);
 
   const pulseAnimStyle = useAnimatedStyle(() => ({
@@ -70,6 +73,17 @@ export function ChatScreen() {
     setInputText('');
   }, [inputText, sendMessage]);
 
+  const handleSelectConversation = useCallback(
+    (conversationId: string, userName: string) => {
+      setPrivateRoom({ conversationId, userName });
+    },
+    [],
+  );
+
+  const handleBackFromRoom = useCallback(() => {
+    setPrivateRoom(null);
+  }, []);
+
   const renderMessage = useCallback(({ item, index }: { item: ChatMessage; index: number }) => {
     const prevMessage = index > 0 ? messages[index - 1] : null;
     const showAvatar = !item.isOwn && (!prevMessage || prevMessage.from !== item.from);
@@ -105,6 +119,16 @@ export function ChatScreen() {
     );
   }, [messages]);
 
+  if (privateRoom) {
+    return (
+      <PrivateChatRoom
+        conversationId={privateRoom.conversationId}
+        userName={privateRoom.userName}
+        onBack={handleBackFromRoom}
+      />
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -132,22 +156,37 @@ export function ChatScreen() {
 
       <View style={styles.tabBar}>
         <Pressable
-          style={[styles.tab, activeTab === 'global' && styles.tabActive]}
-          onPress={() => setActiveTab('global')}
+          style={[styles.tab, activeTab === 'inbox' && styles.tabActive]}
+          onPress={() => { setActiveTab('inbox'); setPrivateRoom(null); }}
         >
-          <Text style={[styles.tabText, activeTab === 'global' && styles.tabTextActive]}>
-            Canal General
+          <Inbox size={14} strokeWidth={2} color={activeTab === 'inbox' ? '#FFFFFF' : T.textSecondary} />
+          <Text style={[styles.tabText, activeTab === 'inbox' && styles.tabTextActive]}>
+            Mis Mensajes
           </Text>
         </Pressable>
         <Pressable
-          style={[styles.tab, activeTab === 'private' && styles.tabActive]}
-          onPress={() => setActiveTab('private')}
+          style={[styles.tab, activeTab === 'global' && styles.tabActive]}
+          onPress={() => { setActiveTab('global'); setPrivateRoom(null); }}
         >
-          <Text style={[styles.tabText, activeTab === 'private' && styles.tabTextActive]}>
-            Mensajes Privados
+          <MessageCircle size={14} strokeWidth={2} color={activeTab === 'global' ? '#FFFFFF' : T.textSecondary} />
+          <Text style={[styles.tabText, activeTab === 'global' && styles.tabTextActive]}>
+            Chat General
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.tab, activeTab === 'contacts' && styles.tabActive]}
+          onPress={() => { setActiveTab('contacts'); setPrivateRoom(null); }}
+        >
+          <Users size={14} strokeWidth={2} color={activeTab === 'contacts' ? '#FFFFFF' : T.textSecondary} />
+          <Text style={[styles.tabText, activeTab === 'contacts' && styles.tabTextActive]}>
+            Contactos
           </Text>
         </Pressable>
       </View>
+
+      {activeTab === 'inbox' && (
+        <ConversationsList onSelectConversation={handleSelectConversation} />
+      )}
 
       {activeTab === 'global' && (
         <>
@@ -159,75 +198,63 @@ export function ChatScreen() {
 
           <FlatList
             ref={flatListRef}
-        data={messages}
-        keyExtractor={(_, i) => String(i)}
-        renderItem={renderMessage}
-        contentContainerStyle={styles.msgList}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-              <View style={styles.emptyArt}>
-                <MessageCircle size={36} strokeWidth={1.5} color={T.textTertiary} />
+            data={messages}
+            keyExtractor={(_, i) => String(i)}
+            renderItem={renderMessage}
+            contentContainerStyle={styles.msgList}
+            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+            ListEmptyComponent={
+              <View style={styles.empty}>
+                <View style={styles.emptyArt}>
+                  <MessageCircle size={36} strokeWidth={1.5} color={T.textTertiary} />
+                </View>
+                <Text style={styles.emptyTitle}>No hay mensajes aún</Text>
+                <Text style={styles.emptySub}>¡Sé el primero en escribir!</Text>
               </View>
-            <Text style={styles.emptyTitle}>No hay mensajes aún</Text>
-            <Text style={styles.emptySub}>¡Sé el primero en escribir!</Text>
-          </View>
-        }
-        removeClippedSubviews
-        maxToRenderPerBatch={15}
-        windowSize={7}
-        initialNumToRender={20}
-      />
+            }
+            removeClippedSubviews
+            maxToRenderPerBatch={15}
+            windowSize={7}
+            initialNumToRender={20}
+          />
 
-      {canSend ? (
-        <View style={styles.inputBar}>
-          <View style={styles.inputWrap}>
-            <TextInput
-              style={styles.input}
-              placeholder="Escribe un mensaje..."
-              placeholderTextColor={T.inputPlaceholder}
-              value={inputText}
-              onChangeText={setInputText}
-              multiline
-              maxLength={500}
-              onSubmitEditing={handleSend}
-              returnKeyType="send"
-              blurOnSubmit
-            />
-          </View>
-          <TouchableOpacity
-            style={[styles.sendBtn, !inputText.trim() && styles.sendBtnOff]}
-            onPress={handleSend}
-            disabled={!inputText.trim()}
-            activeOpacity={0.8}
-          >
-            <Send size={18} color={inputText.trim() ? '#FFFFFF' : T.textSecondary} />
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <View style={styles.readOnlyBar}>
-          <Text style={styles.readOnlyText}>
-            Solo docentes y administradores pueden enviar mensajes
-          </Text>
-        </View>
-      )}
+          {canSend ? (
+            <View style={styles.inputBar}>
+              <View style={styles.inputWrap}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Escribe un mensaje..."
+                  placeholderTextColor={T.inputPlaceholder}
+                  value={inputText}
+                  onChangeText={setInputText}
+                  multiline
+                  maxLength={500}
+                  onSubmitEditing={handleSend}
+                  returnKeyType="send"
+                  blurOnSubmit
+                />
+              </View>
+              <TouchableOpacity
+                style={[styles.sendBtn, !inputText.trim() && styles.sendBtnOff]}
+                onPress={handleSend}
+                disabled={!inputText.trim()}
+                activeOpacity={0.8}
+              >
+                <Send size={18} color={inputText.trim() ? '#FFFFFF' : T.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.readOnlyBar}>
+              <Text style={styles.readOnlyText}>
+                Solo docentes y administradores pueden enviar mensajes
+              </Text>
+            </View>
+          )}
         </>
       )}
 
-      {activeTab === 'private' && !privateRoom && (
-        <PrivateChatList
-          onSelectUser={(conversationId, userName) => {
-            setPrivateRoom({ conversationId, userName });
-          }}
-        />
-      )}
-
-      {activeTab === 'private' && privateRoom && (
-        <PrivateChatRoom
-          conversationId={privateRoom.conversationId}
-          userName={privateRoom.userName}
-          onBack={() => setPrivateRoom(null)}
-        />
+      {activeTab === 'contacts' && (
+        <PrivateChatList onSelectUser={handleSelectConversation} />
       )}
     </KeyboardAvoidingView>
   );
@@ -327,24 +354,26 @@ const styles = StyleSheet.create({
   readOnlyText: {
     fontSize: 12, color: T.textSecondary, textAlign: 'center',
   },
-
   tabBar: {
     flexDirection: 'row',
     paddingHorizontal: Sizes.paddingMd,
     paddingVertical: 8,
-    gap: 8,
+    gap: 6,
     backgroundColor: T.surface,
     borderBottomWidth: 1,
     borderBottomColor: T.divider,
   },
   tab: {
     flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
     paddingVertical: 8,
+    gap: 5,
     borderRadius: Sizes.radiusSm,
     backgroundColor: T.inputBg,
-    alignItems: 'center',
   },
   tabActive: { backgroundColor: T.primary },
-  tabText: { fontSize: 12, fontWeight: '600', color: T.textSecondary },
+  tabText: { fontSize: 11, fontWeight: '600', color: T.textSecondary },
   tabTextActive: { color: '#FFFFFF' },
 });

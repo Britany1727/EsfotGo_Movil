@@ -7,7 +7,7 @@ import type { RouteCalculation } from '../services/route-calculator';
 import type { CampusGraph } from '@/features/graph/domain/graph.entity';
 import type { GraphRouteResult } from '@/features/graph/application/graph-route.service';
 import { findNearestNode, graphRouteToWaypoints } from '@/features/graph/application/graph-route.service';
-import { dijkstra } from '@/features/graph/domain/dijkstra';
+import { aStar } from '@/features/graph/domain/a-star';
 
 export type RoutingStatus = 'idle' | 'computing' | 'ready' | 'error';
 
@@ -48,7 +48,7 @@ export function useRouting(campusGraph: CampusGraph | undefined) {
         const fromNode = findNearestNode(campusGraph, origin);
         const toNode = findNearestNode(campusGraph, destination);
         if (fromNode && toNode && fromNode !== toNode) {
-          const route = dijkstra(campusGraph, fromNode, toNode);
+          const route = aStar(campusGraph, fromNode, toNode);
           if (route) {
             const result = graphRouteToWaypoints(campusGraph, route, fromNode, toNode);
             if (!abortRef.current) {

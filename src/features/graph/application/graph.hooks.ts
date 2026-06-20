@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useCallback } from 'react';
 import { ExpressGraphRepository } from '../infrastructure/express-graph.repository';
-import { dijkstra } from '../domain/dijkstra';
+import { aStar } from '../domain/a-star';
 import type { CampusGraph, GraphEdge, GraphNode, OptimalRoute } from '../domain/graph.entity';
 
 const repo = new ExpressGraphRepository();
@@ -23,7 +23,7 @@ export function useOptimalRoute(
 ): OptimalRoute | null {
   return useMemo(() => {
     if (!graph || !fromId || !toId || fromId === toId) return null;
-    return dijkstra(graph, fromId, toId);
+    return aStar(graph, fromId, toId);
   }, [graph, fromId, toId]);
 }
 
