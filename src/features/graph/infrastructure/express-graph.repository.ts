@@ -9,6 +9,22 @@ import { logGraphStats } from '../domain/graph-integrity';
 
 const AUTH_TOKEN_KEY = 'esfotgo_jwt_token';
 
+const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/;
+
+function isValidObjectId(value: unknown): boolean {
+  return typeof value === 'string' && OBJECT_ID_RE.test(value);
+}
+
+function sanitizePayload(payload: Record<string, unknown>): Record<string, unknown> {
+  const clean: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (value === '' || value === undefined) continue;
+    if (typeof value === 'number' && isNaN(value)) continue;
+    clean[key] = value;
+  }
+  return clean;
+}
+
 // ─── DTOs ───────────────────────────────────────────────────
 
 interface GraphNodeDto {
@@ -90,16 +106,17 @@ export class ExpressGraphRepository implements IGraphRepository {
   async upsertNode(node: Omit<GraphNode, 'id'> & { id?: string }): Promise<GraphNode> {
     if (isDevMode()) return { ...node, id: node.id ?? `mock-${Date.now()}`, type: node.type ?? 'punto_interes', floor: node.floor ?? 1, buildingId: node.buildingId ?? '', referenceId: node.referenceId ?? null, referenceModel: node.referenceModel ?? null };
     const t = await this.token();
-    const payload: Record<string, unknown> = {
+    const payload = sanitizePayload({
       nombre: node.label.trim(),
       tipo: node.type ?? 'punto_interes',
       coordenadas: { lat: Number(node.latitude), lng: Number(node.longitude) },
       piso: Number(node.floor) || 1,
-      edificioId: node.buildingId || undefined,
-      referenciaId: node.referenceId || null,
+      edificioId: isValidObjectId(node.buildingId) ? node.buildingId : undefined,
+      referenciaId: isValidObjectId(node.referenceId) ? node.referenceId : null,
       referenciaModelo: node.referenceModel || null,
-    };
-    if (node.id) payload._id = node.id;
+    });
+    if (node.id && isValidObjectId(node.id)) payload._id = node.id;
+    console.log('[ExpressGraphRepo] Upsert nodo payload:', JSON.stringify(payload));
     const { data, error } = await httpClient.post<{ msg?: string; nodo?: GraphNodeDto }>('/admin/mapa/nodo', payload, t);
     if (error || !data) {
       console.log('[ExpressGraphRepo] Error upsert nodo:', error);
@@ -119,13 +136,13 @@ export class ExpressGraphRepository implements IGraphRepository {
   async upsertEdge(edge: Omit<GraphEdge, 'id'> & { id?: string }): Promise<GraphEdge> {
     if (isDevMode()) return { ...edge, id: edge.id ?? `mock-${Date.now()}` };
     const t = await this.token();
-    const payload: Record<string, unknown> = {
+    const payload = sanitizePayload({
       nodoOrigen: edge.fromNodeId,
       nodoDestino: edge.toNodeId,
       distancia: edge.weight,
       unidireccional: !edge.bidirectional,
-    };
-    if (edge.id) payload._id = edge.id;
+    });
+    if (edge.id && isValidObjectId(edge.id)) payload._id = edge.id;
     const { data, error } = await httpClient.post<GraphEdgeDto>('/admin/mapa/conexion', payload, t);
     if (error || !data) {
       console.log('[ExpressGraphRepo] Error upsert arista:', error);
