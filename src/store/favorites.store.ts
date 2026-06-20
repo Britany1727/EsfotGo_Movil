@@ -3,6 +3,11 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { CampusLocation } from '@/features/map/domain/location.entity';
 import type { BusRoute } from '@/features/polibus/domain/route.entity';
+import { useAuthStore } from './auth.store';
+
+function getCurrentUserId(): string | undefined {
+  return useAuthStore.getState().user?.id;
+}
 
 interface FavoriteLocation {
   id: string;
@@ -15,6 +20,7 @@ interface FavoriteLocation {
   image?: string;
   image360?: string;
   mediaType?: string;
+  userId: string;
 }
 
 interface FavoriteRoute {
@@ -26,16 +32,17 @@ interface FavoriteRoute {
   estimatedTime: number | null;
   distance: number | null;
   direction: string | null;
+  userId: string;
 }
 
 interface FavoritesState {
   locations: FavoriteLocation[];
+  routes: FavoriteRoute[];
   addLocation: (location: CampusLocation) => void;
   removeLocation: (id: string) => void;
   isFavorite: (id: string) => boolean;
   toggleLocation: (location: CampusLocation) => void;
 
-  routes: FavoriteRoute[];
   addRoute: (route: BusRoute) => void;
   removeRoute: (id: string) => void;
   isRouteFavorite: (id: string) => boolean;
@@ -49,8 +56,10 @@ export const useFavoritesStore = create<FavoritesState>()(
       routes: [],
 
       addLocation: (location) => {
+        const uid = getCurrentUserId();
+        if (!uid) return;
         const { locations } = get();
-        if (locations.some((f) => f.id === location.id)) return;
+        if (locations.some((f) => f.id === location.id && f.userId === uid)) return;
         set({
           locations: [
             ...locations,
@@ -65,16 +74,23 @@ export const useFavoritesStore = create<FavoritesState>()(
               image: location.image,
               image360: location.image360,
               mediaType: location.mediaType,
+              userId: uid,
             },
           ],
         });
       },
 
       removeLocation: (id) => {
-        set({ locations: get().locations.filter((f) => f.id !== id) });
+        const uid = getCurrentUserId();
+        if (!uid) return;
+        set({ locations: get().locations.filter((f) => !(f.id === id && f.userId === uid)) });
       },
 
-      isFavorite: (id) => get().locations.some((f) => f.id === id),
+      isFavorite: (id) => {
+        const uid = getCurrentUserId();
+        if (!uid) return false;
+        return get().locations.some((f) => f.id === id && f.userId === uid);
+      },
 
       toggleLocation: (location) => {
         if (get().isFavorite(location.id)) {
@@ -85,8 +101,10 @@ export const useFavoritesStore = create<FavoritesState>()(
       },
 
       addRoute: (route) => {
+        const uid = getCurrentUserId();
+        if (!uid) return;
         const { routes } = get();
-        if (routes.some((r) => r.id === route.id)) return;
+        if (routes.some((r) => r.id === route.id && r.userId === uid)) return;
         set({
           routes: [
             ...routes,
@@ -99,16 +117,23 @@ export const useFavoritesStore = create<FavoritesState>()(
               estimatedTime: route.estimatedTime,
               distance: route.distance,
               direction: route.direction,
+              userId: uid,
             },
           ],
         });
       },
 
       removeRoute: (id) => {
-        set({ routes: get().routes.filter((r) => r.id !== id) });
+        const uid = getCurrentUserId();
+        if (!uid) return;
+        set({ routes: get().routes.filter((r) => !(r.id === id && r.userId === uid)) });
       },
 
-      isRouteFavorite: (id) => get().routes.some((r) => r.id === id),
+      isRouteFavorite: (id) => {
+        const uid = getCurrentUserId();
+        if (!uid) return false;
+        return get().routes.some((r) => r.id === id && r.userId === uid);
+      },
 
       toggleRoute: (route) => {
         if (get().isRouteFavorite(route.id)) {

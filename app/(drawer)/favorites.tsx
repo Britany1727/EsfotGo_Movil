@@ -58,15 +58,19 @@ function favoriteToRoute(f: Favorite): Route {
 export default function FavoritesScreen() {
   const router = useRouter();
   const role = useAuthStore((s) => s.user?.role);
+  const uid = useAuthStore((s) => s.user?.id);
   const canFav = role === 'administrador' || role === 'gestor' || role === 'docente';
 
   const [activeTab, setActiveTab] = useState<FavTab>('aulas');
   const { aulas, edificios, rutas, ubicaciones, total, isLoading, countByType } = useFavoritesByType();
   const removeFavorite = useRemoveFavorite();
-  const localLocations = useFavoritesStore((s) => s.locations);
+  const allLocations = useFavoritesStore((s) => s.locations);
   const removeLocalLocation = useFavoritesStore((s) => s.removeLocation);
-  const localRoutes = useFavoritesStore((s) => s.routes);
+  const allRoutes = useFavoritesStore((s) => s.routes);
   const removeLocalRoute = useFavoritesStore((s) => s.removeRoute);
+
+  const localLocations = allLocations.filter((l) => l.userId === uid);
+  const localRoutes = allRoutes.filter((r) => r.userId === uid);
 
   const localAulas = localLocations.filter((l) => l.category === 'aulas');
   const localEdificios = localLocations.filter((l) => l.category === 'edificios');

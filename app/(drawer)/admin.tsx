@@ -17,7 +17,6 @@ import { LightTheme as T, Sizes, Shadows, Typography } from '@/constants/design-
 import { RoleGuard } from '@/core/guards/role.guard';
 import { BusRoutesAdmin } from '@/features/polibus/presentation/bus-routes-admin';
 import { EventsAdmin } from '@/features/events/presentation/events-admin';
-import { AulasAdmin } from '@/features/aulas/presentation/aulas-admin';
 import { Lock, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { FilePicker } from '@/features/bulk-upload/presentation/file-picker';
 import { PreviewTable } from '@/features/bulk-upload/presentation/preview-table';
@@ -52,7 +51,7 @@ export default function AdminUsersScreen() {
   const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'usuarios' | 'polibus' | 'eventos' | 'aulas' | 'carga'>('usuarios');
+  const [activeTab, setActiveTab] = useState<'usuarios' | 'polibus' | 'eventos' | 'carga'>('usuarios');
   const bulk = useBulkUpload();
 
   const handleEdit = useCallback((u: ManagedUser) => setEditTarget(u), []);
@@ -119,9 +118,6 @@ export default function AdminUsersScreen() {
         <TouchableOpacity style={[styles.tab, activeTab === 'eventos' && styles.tabActive]} onPress={() => setActiveTab('eventos')}>
           <Text style={[styles.tabText, activeTab === 'eventos' && styles.tabTextActive]}>Eventos</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.tab, activeTab === 'aulas' && styles.tabActive]} onPress={() => setActiveTab('aulas')}>
-          <Text style={[styles.tabText, activeTab === 'aulas' && styles.tabTextActive]}>Aulas</Text>
-        </TouchableOpacity>
         <TouchableOpacity style={[styles.tab, activeTab === 'carga' && styles.tabActive]} onPress={() => setActiveTab('carga')}>
           <Text style={[styles.tabText, activeTab === 'carga' && styles.tabTextActive]}>Carga</Text>
         </TouchableOpacity>
@@ -129,7 +125,6 @@ export default function AdminUsersScreen() {
 
       {activeTab === 'polibus' && <BusRoutesAdmin />}
       {activeTab === 'eventos' && <EventsAdmin />}
-      {activeTab === 'aulas' && <AulasAdmin />}
       {activeTab === 'carga' && (
         <View style={styles.bulkContainer}>
           {bulk.phase === 'error' && bulk.errorMessage && (
