@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -27,6 +27,7 @@ export function LocationInfoModal({ location, onClose }: Props) {
   const hasMedia = !!(location.image || location.image360 || location.imageUrl);
   const is360 = location.mediaType === '360' || !!location.image360;
   const imageSrc = location.image360 || location.image || location.imageUrl;
+  const [show360Viewer, setShow360Viewer] = useState(false);
 
   const renderContent = () => {
     if (!hasMedia || !imageSrc) {
@@ -41,7 +42,22 @@ export function LocationInfoModal({ location, onClose }: Props) {
     }
 
     if (is360) {
-      return <PannellumViewer imageUrl={imageSrc} />;
+      return (
+        <View style={styles.imageWrap}>
+          <Image
+            source={{ uri: imageSrc }}
+            style={styles.normalImage}
+            resizeMode="cover"
+          />
+          <Pressable
+            style={styles.panoOverlay}
+            onPress={() => setShow360Viewer(true)}
+          >
+            <Text style={styles.panoIcon}>🔭</Text>
+            <Text style={styles.panoLabel}>Ver en 360°</Text>
+          </Pressable>
+        </View>
+      );
     }
 
     return (
@@ -95,6 +111,12 @@ export function LocationInfoModal({ location, onClose }: Props) {
           {renderContent()}
         </View>
       </Animated.View>
+
+      {show360Viewer && (
+        <View style={StyleSheet.absoluteFill}>
+          <PannellumViewer imageUrl={imageSrc!} onClose={() => setShow360Viewer(false)} />
+        </View>
+      )}
     </Animated.View>
   );
 }
@@ -158,11 +180,31 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingBottom: 32,
   },
+  imageWrap: {
+    flex: 1,
+    position: 'relative',
+  },
   normalImage: {
     width: '100%',
-    height: 260,
-    borderRadius: Sizes.radiusMd,
+    height: '100%',
     backgroundColor: T.surface,
+  },
+  panoOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,80,180,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  panoIcon: {
+    fontSize: 48,
+  },
+  panoLabel: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   description: {
     ...Typography.body,

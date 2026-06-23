@@ -2,7 +2,7 @@ import React, { useCallback, useRef, useState, useMemo, useEffect } from 'react'
 import {
   View, StyleSheet, Pressable, Platform, Text, ActivityIndicator,
 } from 'react-native';
-import MapView, { PROVIDER_GOOGLE, PROVIDER_DEFAULT, Polyline, Circle } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE, PROVIDER_DEFAULT, Polyline, Circle } from 'react-native-maps';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -25,6 +25,7 @@ import { CategoryFilter } from '@/features/map/presentation/category-filter';
 import { MapSearchBar } from '@/features/map/presentation/map-search-bar';
 import { LocationDetailSheet } from '@/features/map/presentation/location-detail-sheet';
 import { LocationInfoModal } from '@/features/map/presentation/location-info-modal';
+import { PannellumViewer } from '@/features/map/presentation/pannellum-viewer';
 import { RestrictedZonesLayer } from '@/features/map/presentation/restricted-zones-layer';
 import { RestrictedZoneInfoModal } from '@/features/map/presentation/restricted-zone-info-modal';
 import { MapFloatingActions } from '@/features/map/presentation/map-floating-actions';
@@ -32,16 +33,12 @@ import { RouteInfoCard } from '@/features/map/presentation/route-info-card';
 import { BusMarker } from '@/features/polibus/presentation/bus-marker';
 import { useBusRoutes, useBusLocations } from '@/features/polibus/application/bus.hooks';
 import { useAdminZones } from '@/features/admin/application/poi.hooks';
-import { calculateOptimalRoute } from '@/features/map/services/route-calculator';
 import { useBatteryOptimizer } from '@/features/map/services/battery-optimizer';
-import { useCampusGraph, useOptimalRoute } from '@/features/graph/application/graph.hooks';
+import { useCampusGraph, useOptimalRoute, haversineMeters } from '@/features/graph/application/graph.hooks';
 import { findNearestNode, graphRouteToWaypoints } from '@/features/graph/application/graph-route.service';
-import type { RouteCalculation } from '@/features/map/services/route-calculator';
 import type { GraphRouteResult } from '@/features/graph/application/graph-route.service';
-import { OsrmRoutingRepository } from '@/features/map/infrastructure/osrm-routing.repository';
-import type { RoutingResult } from '@/features/map/domain/routing.repository';
 import { LightTheme as T, Shadows, Sizes, Typography } from '@/constants/design-system';
-import { MapPin, Navigation, X } from 'lucide-react-native';
+import { MapPin, Navigation, Crosshair, Flag, X, ArrowDownUp } from 'lucide-react-native';
 import { useLocalSearchParams } from 'expo-router';
 
 const MAP_PROVIDER = Platform.OS === 'ios' ? PROVIDER_DEFAULT : PROVIDER_GOOGLE;
@@ -77,14 +74,14 @@ export default function MapScreen() {
   const [selectedLocation, setSelectedLocation] = useState<CampusLocation | null>(null);
   const [infoLocation, setInfoLocation] = useState<CampusLocation | null>(null);
   const [selectedZone, setSelectedZone] = useState<RestrictedZone | null>(null);
+  const [viewing360Location, setViewing360Location] = useState<CampusLocation | null>(null);
   const [isLocating, setIsLocating] = useState(false);
-  const [route, setRoute] = useState<RouteCalculation | null>(null);
   const [graphRoute, setGraphRoute] = useState<GraphRouteResult | null>(null);
-  const [osrmRoute, setOsrmRoute] = useState<RoutingResult | null>(null);
   const [fromNodeId, setFromNodeId] = useState<string | null>(null);
   const [toNodeId, setToNodeId] = useState<string | null>(null);
   const [remainingDistance, setRemainingDistance] = useState<number | null>(null);
   const fullRouteRef = useRef<GeoCoordinate[]>([]);
+  const [planner, setPlanner] = useState<{ mode: 'idle' | 'selecting-origin' | 'selecting-destination' | 'planned'; origin: GeoCoordinate | null; originName: string; destination: GeoCoordinate | null; destinationName: string }>({ mode: 'idle', origin: null, originName: '', destination: null, destinationName: '' });
 
   const params = useLocalSearchParams<{ locationId?: string }>();
   const locationIdFromParams = params.locationId;
@@ -112,47 +109,79 @@ export default function MapScreen() {
 
   if (graphError) console.log('[MapScreen] Error cargando grafo:', (graphError as Error)?.message ?? graphError);
 
-  const osrmRepoRef = useRef(new OsrmRoutingRepository());
+  function directRoute(originPt: GeoCoordinate, destPt: GeoCoordinate): GraphRouteResult {
+    const d = Math.round(haversineMeters(originPt.latitude, originPt.longitude, destPt.latitude, destPt.longitude));
+    return { waypoints: [originPt, destPt], distance: d, etaMinutes: Math.round(d / 83.33), nodeCount: 2 };
+  }
 
   const computeRoute = useCallback(
-    (dest: GeoCoordinate) => {
-      if (!userLocation) return;
-      const origin: GeoCoordinate = {
-        latitude: userLocation.coords.latitude,
-        longitude: userLocation.coords.longitude,
+    (origin?: GeoCoordinate, dest?: GeoCoordinate) => {
+      if (!dest) return;
+      if (!origin && !userLocation) return;
+      setGraphRoute(null);
+      setFromNodeId(null);
+      setToNodeId(null);
+
+      const originPt: GeoCoordinate = origin ?? {
+        latitude: userLocation!.coords.latitude,
+        longitude: userLocation!.coords.longitude,
       };
-      if (campusGraph) {
-        const fromNode = findNearestNode(campusGraph, origin);
-        const toNode = findNearestNode(campusGraph, dest);
-        if (fromNode && toNode && fromNode !== toNode) {
-          setFromNodeId(fromNode); setToNodeId(toNode); setRoute(null); setOsrmRoute(null); return;
-        }
+
+      if (!campusGraph || campusGraph.nodes.length === 0) {
+        console.log('[MapScreen] Sin grafo, usando línea directa');
+        setGraphRoute(directRoute(originPt, dest));
+        return;
       }
-      osrmRepoRef.current.getRoute(origin, dest)
-        .then((osrmResult) => {
-          setRoute(null); setGraphRoute(null); setOsrmRoute(osrmResult); setFromNodeId(null); setToNodeId(null);
-        })
-        .catch((osrmErr: unknown) => {
-          console.log('[MapScreen] OSRM falló, usando ruta directa:', (osrmErr as Error)?.message);
-          const calc = calculateOptimalRoute(origin, dest);
-          setRoute(calc); setGraphRoute(null); setOsrmRoute(null); setFromNodeId(null); setToNodeId(null);
-        });
+
+      console.log('[MapScreen] computeRoute:', JSON.stringify(originPt), '→', JSON.stringify(dest), 'grafo nodos:', campusGraph.nodes.length);
+
+      const SEARCH_RADII = [200, 500, 1000, 2000, 5000];
+      let fromNode: string | null = null;
+      let toNode: string | null = null;
+
+      for (const radius of SEARCH_RADII) {
+        fromNode = findNearestNode(campusGraph, originPt, radius);
+        toNode = findNearestNode(campusGraph, dest, radius);
+        console.log(`[MapScreen]  radio ${radius}m → fromNode: ${fromNode}, toNode: ${toNode}`);
+        if (fromNode && toNode) break;
+      }
+
+      if (fromNode && toNode) {
+        console.log('[MapScreen] Ruta por nodos:', fromNode, '→', toNode);
+        setFromNodeId(fromNode);
+        setToNodeId(toNode);
+      } else {
+        console.log('[MapScreen] Nodos no encontrados, usando línea directa');
+        setGraphRoute(directRoute(originPt, dest));
+      }
     },
     [userLocation, campusGraph],
   );
 
   React.useEffect(() => {
     if (optimalGraphRoute && campusGraph) {
-      setGraphRoute(graphRouteToWaypoints(campusGraph, optimalGraphRoute));
+      const result = graphRouteToWaypoints(campusGraph, optimalGraphRoute);
+      console.log('[MapScreen] graphRoute nodos:', result.distance, 'm,', result.nodeCount, 'nodos');
+      setGraphRoute(result);
     } else if (fromNodeId && toNodeId && !optimalGraphRoute) {
-      setGraphRoute(null);
-      setRoute(null);
+      const fromNode = campusGraph?.nodes.find((n) => n.id === fromNodeId);
+      const toNode = campusGraph?.nodes.find((n) => n.id === toNodeId);
+      if (fromNode && toNode) {
+        console.log('[MapScreen] A* sin ruta, usando línea directa entre nodos');
+        setGraphRoute(directRoute(
+          { latitude: fromNode.latitude, longitude: fromNode.longitude },
+          { latitude: toNode.latitude, longitude: toNode.longitude },
+        ));
+      } else {
+        console.log('[MapScreen] A* sin ruta y nodos no encontrados');
+        setGraphRoute(null);
+      }
     }
-  }, [optimalGraphRoute, campusGraph, fromNodeId, toNodeId, userLocation, selectedLocation]);
+  }, [optimalGraphRoute, campusGraph, fromNodeId, toNodeId]);
 
   // Route tracking — trim waypoints as user walks
   useEffect(() => {
-    const coords = graphRoute?.waypoints ?? route?.waypoints ?? osrmRoute?.waypoints;
+    const coords = graphRoute?.waypoints;
     if (!coords || coords.length < 2 || !userLocation) {
       setRemainingDistance(null);
       fullRouteRef.current = [];
@@ -163,7 +192,6 @@ export default function MapScreen() {
     const userLat = userLocation.coords.latitude;
     const userLng = userLocation.coords.longitude;
 
-    // Find first waypoint not yet passed (within 12m threshold)
     const THRESHOLD_M = 12;
     let trimIdx = 0;
     let cumDist = 0;
@@ -173,7 +201,6 @@ export default function MapScreen() {
       if (d < THRESHOLD_M) trimIdx = i + 1;
     }
 
-    // Calculate remaining distance
     const remaining = trimIdx > 0 ? coords.slice(trimIdx) : coords;
     for (let i = 0; i < remaining.length - 1; i++) {
       cumDist += haversineLocal(
@@ -187,12 +214,11 @@ export default function MapScreen() {
 
     setRemainingDistance(Math.round(cumDist));
 
-    // If reached destination (<12m from last waypoint)
     const last = coords[coords.length - 1];
     if (haversineLocal(userLat, userLng, last.latitude, last.longitude) < THRESHOLD_M) {
       setRemainingDistance(null);
     }
-  }, [userLocation, graphRoute, route, osrmRoute]);
+  }, [userLocation, graphRoute]);
 
   const { data: busRoutes } = useBusRoutes();
   const activeRoute = busRoutes?.find((r) => r.isActive);
@@ -202,17 +228,38 @@ export default function MapScreen() {
 
   const handleRegionChange = useCallback((r: MapRegion) => setRegion(r), []);
   const handleMarkerPress = useCallback((marker: MapMarkerData) => {
-    setSelectedLocation({
+    const coord = marker.coordinate;
+    if (planner.mode === 'selecting-origin') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setPlanner((prev) => ({ ...prev, mode: 'selecting-destination', origin: coord, originName: marker.title }));
+      return;
+    }
+    if (planner.mode === 'selecting-destination') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setPlanner((prev) => ({ ...prev, mode: 'planned', destination: coord, destinationName: marker.title }));
+      const origin = planner.origin!;
+      setSelectedLocation({ id: marker.id, name: marker.title, description: marker.description ?? null, category: marker.category, latitude: coord.latitude, longitude: coord.longitude, imageUrl: marker.imageUrl ?? null, image360: marker.image360, mediaType: marker.mediaType as CampusLocation['mediaType'], createdAt: '' });
+      computeRoute(origin, coord);
+      return;
+    }
+    const loc: CampusLocation = {
       id: marker.id, name: marker.title,
       description: marker.description ?? null,
       category: marker.category,
-      latitude: marker.coordinate.latitude,
-      longitude: marker.coordinate.longitude,
+      latitude: coord.latitude,
+      longitude: coord.longitude,
       imageUrl: marker.imageUrl ?? null,
+      image360: marker.image360,
+      mediaType: marker.mediaType as CampusLocation['mediaType'],
       createdAt: '',
-    });
-    computeRoute(marker.coordinate);
-  }, [computeRoute]);
+    };
+    const imageToShow = loc.image360 || loc.imageUrl;
+    if (imageToShow) {
+      setViewing360Location(loc);
+    }
+    setSelectedLocation(loc);
+    computeRoute(undefined, coord);
+  }, [computeRoute, planner.mode, planner.origin]);
 
   // Auto-select location from params (e.g., navigated from Aulas screen)
   React.useEffect(() => {
@@ -246,15 +293,30 @@ export default function MapScreen() {
       latitude: location.latitude, longitude: location.longitude,
       latitudeDelta: 0.004, longitudeDelta: 0.004,
     }, 500);
-    computeRoute({ latitude: location.latitude, longitude: location.longitude });
+    computeRoute(undefined, { latitude: location.latitude, longitude: location.longitude });
   }, [computeRoute]);
   const handleClearRoute = useCallback(() => {
-    setRoute(null); setGraphRoute(null); setOsrmRoute(null); setFromNodeId(null); setToNodeId(null);
+    setGraphRoute(null); setFromNodeId(null); setToNodeId(null);
     setSelectedLocation(null);
+    setPlanner({ mode: 'idle', origin: null, originName: '', destination: null, destinationName: '' });
   }, []);
 
   const handleMapPress = useCallback((event: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => {
     const coord = event.nativeEvent.coordinate;
+    if (planner.mode === 'selecting-origin') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setPlanner((prev) => ({ ...prev, mode: 'selecting-destination', origin: coord, originName: `${coord.latitude.toFixed(5)}, ${coord.longitude.toFixed(5)}` }));
+      return;
+    }
+    if (planner.mode === 'selecting-destination') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const destName = `${coord.latitude.toFixed(5)}, ${coord.longitude.toFixed(5)}`;
+      setPlanner((prev) => ({ ...prev, mode: 'planned', destination: coord, destinationName: destName }));
+      const origin = planner.origin!;
+      setSelectedLocation({ id: `plan-dest-${Date.now()}`, name: 'Destino', description: destName, category: 'otro', latitude: coord.latitude, longitude: coord.longitude, imageUrl: null, createdAt: '' });
+      computeRoute({ latitude: origin.latitude, longitude: origin.longitude }, { latitude: coord.latitude, longitude: coord.longitude });
+      return;
+    }
     const dest: CampusLocation = {
       id: `tap-${Date.now()}`,
       name: 'Destino seleccionado',
@@ -266,8 +328,8 @@ export default function MapScreen() {
       createdAt: new Date().toISOString(),
     };
     setSelectedLocation(dest);
-    computeRoute({ latitude: coord.latitude, longitude: coord.longitude });
-  }, [computeRoute]);
+    computeRoute(undefined, { latitude: coord.latitude, longitude: coord.longitude });
+  }, [computeRoute, planner.mode, planner.origin]);
 
   const handleMyLocation = useCallback(() => {
     if (!userLocation) return;
@@ -338,16 +400,16 @@ export default function MapScreen() {
 
         <RestrictedZonesLayer zones={zones} onZonePress={setSelectedZone} />
 
-        {(route || graphRoute || osrmRoute) && (route?.waypoints.length ?? graphRoute?.waypoints.length ?? osrmRoute?.waypoints.length ?? 0) > 1 && (
+        {graphRoute && graphRoute.waypoints.length > 1 && (
           <Polyline
-            coordinates={graphRoute ? graphRoute.waypoints : osrmRoute ? osrmRoute.waypoints : route!.waypoints}
-            strokeColor={graphRoute ? T.success : osrmRoute ? '#2563EB' : T.primary}
-            strokeWidth={graphRoute ? 6 : osrmRoute ? 5 : 5}
-            lineDashPattern={graphRoute ? undefined : osrmRoute ? undefined : [8, 6]}
+            coordinates={graphRoute.waypoints}
+            strokeColor={T.success}
+            strokeWidth={6}
             lineCap="round"
             lineJoin="round"
           />
         )}
+
         {clusters.map((item) =>
           isClusterPoint(item) ? (
             <ClusterMarker
@@ -369,23 +431,41 @@ export default function MapScreen() {
         {busLocations?.map((bus) => (
           <BusMarker key={bus.id} bus={bus} color={activeRoute?.color} />
         ))}
-        {(route || graphRoute) && (
+        {graphRoute && (
           <LocationMarker
             key="route-dest"
             marker={{
               id: 'route-dest',
-              coordinate: route?.destination ?? (graphRoute
-                ? graphRoute.waypoints[graphRoute.waypoints.length - 1]
-                : { latitude: 0, longitude: 0 }),
+              coordinate: graphRoute.waypoints[graphRoute.waypoints.length - 1],
               title: selectedLocation?.name ?? 'Destino',
-              description: graphRoute
-                ? `${graphRoute.distance}m · ${graphRoute.nodeCount} nodos`
-                : `${Math.round(route?.distance ?? 0)}m`,
+              description: `${graphRoute.distance}m · ${graphRoute.nodeCount} nodos`,
               category: 'otro',
               clusterWeight: 0,
             }}
             tracksViewChanges={true}
           />
+        )}
+        {planner.origin && (
+          <Marker
+            coordinate={planner.origin}
+            anchor={{ x: 0.5, y: 1 }}
+            zIndex={110}
+          >
+            <View style={styles.originMarker}>
+              <Flag size={18} strokeWidth={2.5} color="#FFFFFF" />
+            </View>
+          </Marker>
+        )}
+        {planner.destination && (
+          <Marker
+            coordinate={planner.destination}
+            anchor={{ x: 0.5, y: 1 }}
+            zIndex={110}
+          >
+            <View style={styles.destMarker}>
+              <MapPin size={18} strokeWidth={2.5} color="#FFFFFF" />
+            </View>
+          </Marker>
         )}
       </MapView>
 
@@ -404,43 +484,13 @@ export default function MapScreen() {
 
       {/* Route info card */}
       <RouteInfoCard
-        route={osrmRoute ? null : route}
-        graphRoute={osrmRoute ? null : graphRoute}
-        isVisible={!!(route || graphRoute || osrmRoute)}
+        graphRoute={graphRoute}
+        isVisible={!!graphRoute}
         onClear={handleClearRoute}
       />
 
-      {/* OSRM route info — compact inline */}
-      {osrmRoute && (
-        <Animated.View
-          entering={FadeIn.duration(300)}
-          exiting={FadeOut.duration(200)}
-          style={styles.osrmCard}
-        >
-          <View style={styles.osrmContent}>
-            <View style={styles.osrmIconWrap}>
-              <Navigation size={18} strokeWidth={1.8} color="#2563EB" />
-            </View>
-            <View style={styles.osrmInfo}>
-              <Text style={styles.osrmLabel}>Ruta externa (OSRM)</Text>
-              <Text style={styles.osrmValue}>
-                {osrmRoute.distance < 1000
-                  ? `${osrmRoute.distance} m`
-                  : `${(osrmRoute.distance / 1000).toFixed(1)} km`}{' '}
-                <Text style={styles.osrmDistance}>
-                  (~{Math.round(osrmRoute.duration / 60)} min)
-                </Text>
-              </Text>
-            </View>
-          </View>
-          <Pressable style={styles.clearBtn} onPress={handleClearRoute} hitSlop={8}>
-            <X size={14} strokeWidth={2.2} color={T.textSecondary} />
-          </Pressable>
-        </Animated.View>
-      )}
-
       {/* Route tracking — remaining distance */}
-      {(graphRoute || route) && remainingDistance !== null && remainingDistance > 0 && (
+      {graphRoute && remainingDistance !== null && remainingDistance > 0 && (
         <Animated.View
           entering={FadeIn.duration(300)}
           exiting={FadeOut.duration(200)}
@@ -455,6 +505,85 @@ export default function MapScreen() {
             </Text>
           </View>
           <Text style={styles.trackingLabel}>Ruta interna del campus</Text>
+        </Animated.View>
+      )}
+
+      {/* Route planner panel */}
+      {planner.mode !== 'idle' && (
+        <Animated.View
+          entering={FadeIn.duration(250)}
+          exiting={FadeOut.duration(200)}
+          style={styles.plannerPanel}
+        >
+          <View style={styles.plannerHeader}>
+            <Text style={styles.plannerTitle}>Planificar ruta</Text>
+            <Pressable style={styles.plannerClose} onPress={() => setPlanner({ mode: 'idle', origin: null, originName: '', destination: null, destinationName: '' })} hitSlop={10}>
+              <X size={18} strokeWidth={2.2} color={T.textSecondary} />
+            </Pressable>
+          </View>
+
+          <View style={styles.plannerRow}>
+            <View style={[styles.plannerDot, { backgroundColor: T.success }]} />
+            <View style={styles.plannerField}>
+              <Text style={styles.plannerLabel}>Origen</Text>
+              <Text style={styles.plannerValue} numberOfLines={1}>
+                {planner.origin ? planner.originName : (planner.mode === 'selecting-origin' ? 'Toca en el mapa...' : '—')}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.plannerConnector}>
+            <View style={styles.plannerLine} />
+          </View>
+
+          <View style={styles.plannerRow}>
+            <View style={[styles.plannerDot, { backgroundColor: T.error }]} />
+            <View style={styles.plannerField}>
+              <Text style={styles.plannerLabel}>Destino</Text>
+              <Text style={styles.plannerValue} numberOfLines={1}>
+                {planner.destination ? planner.destinationName : (planner.mode === 'selecting-destination' ? 'Toca en el mapa...' : '—')}
+              </Text>
+            </View>
+          </View>
+
+          {planner.mode === 'selecting-origin' && (
+            <Text style={styles.plannerHint}>Toca un punto en el mapa o un marcador para elegir el ORIGEN</Text>
+          )}
+          {planner.mode === 'selecting-destination' && (
+            <Text style={styles.plannerHint}>Toca un punto en el mapa o un marcador para elegir el DESTINO</Text>
+          )}
+
+          {planner.mode === 'planned' && (
+            <View style={styles.plannerActions}>
+              <Pressable style={styles.plannerSwapBtn} onPress={() => {
+                const orig = planner.origin!; const origN = planner.originName;
+                const dest = planner.destination!; const destN = planner.destinationName;
+                setPlanner({ mode: 'planned', origin: dest, originName: destN, destination: orig, destinationName: origN });
+                computeRoute(dest, orig);
+              }}>
+                <ArrowDownUp size={16} strokeWidth={2} color={T.textSecondary} />
+                <Text style={styles.plannerSwapT}>Intercambiar</Text>
+              </Pressable>
+              <Pressable style={styles.plannerCalcBtn} onPress={() => {
+                setPlanner({ mode: 'idle', origin: null, originName: '', destination: null, destinationName: '' });
+              }}>
+                <Navigation size={16} strokeWidth={2} color="#FFFFFF" />
+                <Text style={styles.plannerCalcT}>Iniciar ruta</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {planner.mode === 'selecting-origin' && (
+            <Pressable style={styles.plannerUseGpsBtn} onPress={() => {
+              if (!userLocation) return;
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              const coord = { latitude: userLocation.coords.latitude, longitude: userLocation.coords.longitude };
+              setPlanner((prev) => ({ ...prev, mode: 'selecting-destination', origin: coord, originName: 'Mi ubicación' }));
+            }}>
+              <Crosshair size={16} strokeWidth={2} color={T.primary} />
+              <Text style={styles.plannerUseGpsT}>Usar mi ubicación como origen</Text>
+            </Pressable>
+          )}
         </Animated.View>
       )}
 
@@ -485,13 +614,26 @@ export default function MapScreen() {
         </Pressable>
       </Animated.View>
 
+      {/* 360° viewer — fullscreen overlay on marker tap */}
+      {viewing360Location && (
+        <PannellumViewer
+          imageUrl={viewing360Location.image360 || viewing360Location.imageUrl || ''}
+          onClose={() => setViewing360Location(null)}
+          title={viewing360Location.name}
+        />
+      )}
+
       {/* Location detail */}
       <LocationDetailSheet
         location={selectedLocation}
-        onClose={() => { setSelectedLocation(null); setRoute(null); setGraphRoute(null); setOsrmRoute(null); }}
-        onNavigate={(loc) => computeRoute({ latitude: loc.latitude, longitude: loc.longitude })}
+        onClose={() => { setSelectedLocation(null); setGraphRoute(null); setFromNodeId(null); setToNodeId(null); }}
+        onNavigate={(loc) => computeRoute(undefined, { latitude: loc.latitude, longitude: loc.longitude })}
         onMoreInfo={(loc) => setInfoLocation(loc)}
-        onClearRoute={() => { setRoute(null); setGraphRoute(null); setOsrmRoute(null); }}
+        onClearRoute={() => { setGraphRoute(null); setFromNodeId(null); setToNodeId(null); }}
+        onStartPlanner={() => {
+          setPlanner({ mode: 'selecting-origin', origin: null, originName: '', destination: null, destinationName: '' });
+          setSelectedLocation(null);
+        }}
       />
 
       {infoLocation && (
@@ -556,60 +698,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: T.cardBorder,
     ...Shadows.xl,
   },
-  osrmCard: {
-    position: 'absolute',
-    top: 130,
-    left: 16,
-    right: 16,
-    backgroundColor: T.surfaceGlass,
-    borderRadius: Sizes.radiusLg,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#2563EB30',
-    ...Shadows.lg,
-    zIndex: 200,
-  },
-  osrmContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  osrmIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: '#2563EB18',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  osrmInfo: { flex: 1, gap: 2 },
-  osrmLabel: {
-    ...Typography.overline,
-    color: '#2563EB',
-    fontWeight: '700',
-  },
-  osrmValue: {
-    ...Typography.h4,
-    color: T.textPrimary,
-    fontSize: 16,
-  },
-  osrmDistance: {
-    ...Typography.bodySm,
-    color: T.textSecondary,
-    fontWeight: '400',
-  },
-  clearBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: T.surfaceBorder,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 8,
-  },
+
   trackingBanner: {
     position: 'absolute',
     top: 130,
@@ -638,5 +727,141 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: T.textSecondary,
     marginLeft: 24,
+  },
+
+  // ─── Planner panel ─────────────────────────────────────────
+  plannerPanel: {
+    position: 'absolute',
+    bottom: 140,
+    left: 16,
+    right: 16,
+    backgroundColor: T.surface,
+    borderRadius: Sizes.radiusLg,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: T.cardBorder,
+    ...Shadows.xl,
+    zIndex: 300,
+    gap: 8,
+  },
+  plannerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  plannerTitle: {
+    ...Typography.h4,
+    color: T.textPrimary,
+    fontSize: 16,
+  },
+  plannerClose: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: T.surfaceBorder,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  plannerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  plannerDot: {
+    width: 14, height: 14, borderRadius: 7,
+    borderWidth: 2, borderColor: '#FFFFFF',
+  },
+  plannerField: {
+    flex: 1,
+  },
+  plannerLabel: {
+    ...Typography.caption,
+    color: T.textTertiary,
+    fontWeight: '600',
+    fontSize: 11,
+  },
+  plannerValue: {
+    ...Typography.body,
+    color: T.textPrimary,
+    fontWeight: '500',
+  },
+  plannerConnector: {
+    paddingLeft: 6,
+    height: 12,
+  },
+  plannerLine: {
+    width: 2,
+    height: '100%',
+    backgroundColor: T.textTertiary,
+    marginLeft: 6,
+  },
+  plannerHint: {
+    ...Typography.caption,
+    color: T.primary,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  plannerActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+  },
+  plannerSwapBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: T.surfaceBorder,
+  },
+  plannerSwapT: {
+    ...Typography.button,
+    color: T.textSecondary,
+    fontSize: 13,
+  },
+  plannerCalcBtn: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: T.primary,
+  },
+  plannerCalcT: {
+    ...Typography.button,
+    color: '#FFFFFF',
+    fontSize: 13,
+  },
+  plannerUseGpsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: T.primaryMuted,
+    marginTop: 4,
+  },
+  plannerUseGpsT: {
+    ...Typography.button,
+    color: T.primary,
+    fontSize: 13,
+  },
+  originMarker: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: T.success,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 2.5, borderColor: '#FFFFFF',
+    ...Shadows.md,
+  },
+  destMarker: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: T.error,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 2.5, borderColor: '#FFFFFF',
+    ...Shadows.md,
   },
 });

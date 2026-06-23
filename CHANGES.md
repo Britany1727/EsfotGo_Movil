@@ -329,3 +329,186 @@ La app estaba usando mock data (`EXPO_PUBLIC_DEV_MODE=true`) en lugar de conecta
 #### `src/server.js`
 - CORS actualizado para incluir Expo dev server (`localhost:8081`, `127.0.0.1:8081`)
 - Ahora soporta `CORS_ORIGINS` como variable de entorno (lista separada por comas)
+
+---
+
+## 10. Eventos — Subida de imágenes a Cloudinary (Create + Update)
+
+### Problema
+La creación y edición de eventos enviaba la URI local del dispositivo (`file://...`) como campo `imagen`, pero el backend espera `subirBase64Evento` (en base64) para subir la imagen a Cloudinary.
+
+### Solución
+- Se agregó conversión de URI local a base64 usando `expo-file-system` en `event-form.tsx`
+- Se agregó campo `imageBase64` al payload de create/update
+- El repositorio (`express-event.repository.ts`) distingue entre `imageBase64` (→ `subirBase64Evento`) y `imageUrl` (URL existente → `imagen`)
+
+### Archivos modificados
+
+#### `src/features/events/domain/event.entity.ts`
+- Agregados tipos `EventCreateInput` y `EventUpdateInput` que incluyen `imageBase64?: string`
+
+#### `src/features/events/domain/event.repository.ts`
+- `createEvent` acepta `{ imageBase64?: string }`
+- `updateEvent` acepta `{ imageBase64?: string }`
+
+#### `src/features/events/application/event.usecases.ts`
+- `CreateEventUseCase.execute` usa `EventCreateInput`
+- `UpdateEventUseCase.execute` usa `EventUpdateInput`
+
+#### `src/features/events/application/event.hooks.ts`
+- `useCreateEvent` mutationFn acepta `EventCreateInput`
+- `useUpdateEvent` mutationFn acepta `EventUpdateInput` en `input`
+
+#### `src/features/events/presentation/event-form.tsx`
+- Agregado `import { readAsStringAsync } from 'expo-file-system/legacy'` (v19: legacy APIs movidas a `expo-file-system/legacy`)
+- Agregado estado `imageBase64`
+- `handlePickImage`: tras seleccionar imagen, la convierte a base64 con `readAsStringAsync(uri, { encoding: 'base64' })` (usa `'base64'` literal porque `EncodingType.Base64` es `undefined` en v19)
+- Al quitar la imagen, se limpia `imageBase64`
+- `onSubmit`: envía `imageBase64` como campo separado cuando hay imagen nueva
+
+#### `src/features/events/infrastructure/express-event.repository.ts`
+- Eliminado `import * as FileSystem` (la conversión ahora está en el form)
+- `mapEntityToDto` vuelve a ser síncrona
+- Lógica de imagen:
+  - Si `imageBase64` es truthy → `dto.subirBase64Evento = imageBase64`
+  - Si `imageUrl` no es undefined → `dto.imagen = imageUrl`
+- `createEvent`: si `data` es `null` (backend devuelve `{ success: true, data: null }`), retorna un evento sintético en lugar de lanzar error. `onSuccess` invalida la lista y se refetchea.
+- `updateEvent`: si `data` es `null`, hace `getEventById(id)` para obtener los datos actualizados.
+
+---
+
+## 11. Visor 360° Pannellum — Pantalla completa, overlay y vista previa
+
+### Problema
+El visor 360° (`PannellumViewer`) se renderizaba inline dentro del modal, ocupando espacio sin dar una experiencia inmersiva. No había forma de ver la imagen 360° a pantalla completa, ni había indicación visual en la tarjeta de detalle de que un lugar tenía contenido panorámico.
+
+### Solución
+- `PannellumViewer` ahora se renderiza como overlay fullscreen (absolute, zIndex 9999) con animación de entrada/salida (FadeIn/FadeOut)
+- Agregada barra superior con título "Vista 360°" y botón de cierre (rojo) que respeta SafeAreaInsets
+- Se habilitaron los controles de zoom táctil de Pannellum
+- El modal `LocationInfoModal` ahora muestra la imagen normal con un overlay "Ver en 360°" al presionar (en lugar del visor inline)
+- El `LocationDetailSheet` ahora muestra un thumbnail preview de la imagen, con badge "360°" y overlay para contenido panorámico
+- Se eliminó el componente obsoleto `panorama-360-viewer.tsx`
+
+### Archivos modificados
+
+#### `src/features/map/presentation/pannellum-viewer.tsx`
+- **Props**: ahora acepta `onClose` (obligatorio) en lugar de ser auto-contenido
+- **Layout**: overlay fullscreen absolute (`position: 'absolute'`, `zIndex: 9999`, `elevation: 9999`)
+- **Animación**: `Animated.View` con `FadeIn.duration(300)` / `FadeOut.duration(200)` (react-native-reanimated)
+- **Barra superior**: título "Vista 360°" a la izquierda, botón rojo `X` a la derecha, padding superior respeta SafeAreaInsets
+- **Carga/Error**: mantiene indicador de carga y mensaje de error si falla el WebView
+- **Pannellum**: se habilitó `showZoomCtrl: true`, `keyboardZoom: true`, `mouseZoom: true`; se eliminó `display: none` de controles CSS
+- **onClose**: llama a `onClose` del prop y el padre (`LocationInfoModal`) desmonta el visor
+
+#### `src/features/map/presentation/location-info-modal.tsx`
+- Eliminado renderizado inline de `PannellumViewer`
+- Agregado estado `show360Viewer` (boolean)
+- Cuando `mediaType === '360'`: muestra la imagen normal con un overlay semi-transparente azul y texto "🔭 Ver en 360°" → al presionar, se renderiza `PannellumViewer` como overlay fullscreen (`position: absolute`, `zIndex`)
+- Cuando no es 360° o no hay media: se mantiene el comportamiento anterior (imagen con scroll/descripción, o mensaje "No hay contenido multimedia")
+
+#### `src/features/map/presentation/location-detail-sheet.tsx`
+- Agregado `Image` de `react-native` a imports
+- **Nueva sección**: entre el header y la descripción, si el location tiene `image360`/`image`/`imageUrl`, se muestra un `Pressable` con thumbnail de 180px de altura
+- Si `mediaType === '360'` o tiene `image360`: se superpone badge "360°" (esquina superior izquierda) y overlay "🔭 Ver en 360°" (centro)
+- Al presionar el thumbnail, se dispara `onMoreInfo(location)` que abre el `LocationInfoModal`
+
+### Archivos eliminados
+
+#### `src/features/map/presentation/panorama-360-viewer.tsx`
+- Eliminado completamente (ya no hay imports que lo referencien)
+
+### Archivos modificados (flujo directo al visor 360°)
+
+#### `src/features/map/domain/coordinates.ts`
+- `MapMarkerData`: agregados campos `image360?: string` y `mediaType?: string` para que los datos 360 viajen con el marcador
+
+#### `src/features/map/application/map.hooks.ts`
+- `locationToMarker()`: ahora pasa `image360` y `mediaType` desde `CampusLocation` al `MapMarkerData`
+
+#### `src/features/map/presentation/pannellum-viewer.tsx`
+- Agregado prop opcional `title?: string` para mostrar el nombre de la ubicación en la barra superior (en lugar del genérico "Vista 360°")
+
+#### `app/(drawer)/(tabs)/map.tsx`
+- Agregado estado `viewing360Location: CampusLocation | null`
+- `handleMarkerPress`: ahora incluye `image360` y `mediaType` en el objeto `CampusLocation`. Si el marcador tiene `mediaType === '360'` o `image360`, establece `viewing360Location` → abre el visor 360° directamente (como Google Street View). También establece `selectedLocation` para que la bottom sheet esté disponible al cerrar el visor
+- Renderiza `<PannellumViewer>` como overlay fullscreen cuando `viewing360Location` está definido, con el nombre de la ubicación como título
+
+### Comportamiento resultante
+1. **Usuario toca marcador con imagen 360°** → se abre `PannellumViewer` en pantalla completa inmediatamente (con nombre y botón cerrar). Al cerrar, la bottom sheet con info del lugar queda visible.
+2. **Usuario toca marcador sin imagen 360°** → se abre `LocationDetailSheet` (bottom sheet) como antes, sin cambios.
+
+---
+
+## 12. Ruta óptima solo con nodos del grafo (sin OSRM ni calles)
+
+### Problema
+El cálculo de rutas usaba tres estrategias: (1) nodos del grafo interno, (2) OSRM (rutas de calle externas), y (3) línea recta directa. Esto hacía que la ruta a veces usara calles reales en lugar de los caminos peatonales del campus representados por los nodos.
+
+### Solución
+Se eliminó toda dependencia de OSRM y del ruteo por calles. Ahora `computeRoute` busca exclusivamente nodos del grafo con radios progresivos (200m → 500m → 1000m → 5000m) hasta encontrar un nodo cercano para origen y destino. Si no hay grafo disponible, no se muestra ruta.
+
+### Archivos modificados
+
+#### `app/(drawer)/(tabs)/map.tsx`
+- Eliminados imports: `calculateOptimalRoute`, `RouteCalculation`, `OsrmRoutingRepository`, `RoutingResult`
+- Eliminados estados: `route`, `osrmRoute`
+- Eliminado `osrmRepoRef` (instancia de `OsrmRoutingRepository`)
+- `computeRoute` simplificado: busca nodos con radios progresivos (200, 500, 1000, 5000m). Si no encuentra nodos para origen y destino, no dibuja ruta
+- Eliminado renderizado de `Polyline` para OSRM/ruta directa (solo queda `graphRoute`)
+- Eliminada tarjeta OSRM y sus estilos asociados (`osrmCard`, `osrmContent`, etc.)
+- Simplificado `RouteInfoCard` y `handleClearRoute`
+- `onClose` y `onClearRoute` de `LocationDetailSheet` ya no limpian `route`/`osrmRoute`
+- Efecto de seguimiento simplificado a solo `graphRoute`
+
+#### `src/features/map/presentation/route-info-card.tsx`
+- Eliminado import de `RouteCalculation` y `formatRouteInfo`
+- Eliminado prop `route` de `RouteInfoCardProps`
+- Componente simplificado: solo recibe `graphRoute`, `isVisible`, `onClear`
+
+### Comportamiento resultante
+- Al tocar un marcador o punto en el mapa, se buscan los nodos más cercanos con radio creciente
+- La ruta se calcula exclusivamente con A* sobre los nodos/edges del grafo
+- Si no hay grafo cargado o no se encuentran nodos cercanos, no se muestra ruta
+- Ya no hay fallback a OSRM (rutas de calle) ni a línea recta
+
+---
+
+## 13. Planificador de ruta manual — Elegir origen y destino (como InDrive)
+
+### Problema
+El cálculo de ruta siempre usaba la ubicación GPS actual como origen. Si el usuario está fuera del campus o quiere planificar una ruta entre dos puntos arbitrarios, no tenía forma de hacerlo.
+
+### Solución
+Se agregó un planificador de ruta manual que permite tocar en el mapa para elegir ORIGEN y DESTINO, similar a cómo funciona InDrive o Google Maps. La ruta se calcula exclusivamente con nodos del grafo entre los dos puntos seleccionados.
+
+### Archivos modificados
+
+#### `app/(drawer)/(tabs)/map.tsx`
+- Nuevo estado `planner` con `mode: 'idle' | 'selecting-origin' | 'selecting-destination' | 'planned'`, `origin`, `originName`, `destination`, `destinationName`
+- `computeRoute` ahora acepta dos argumentos opcionales: `(origin?: GeoCoordinate, dest?: GeoCoordinate)`. Si no se pasa origin, usa la ubicación GPS actual
+- `handleMarkerPress`: si el planner está en `selecting-origin`, establece el origen del marcador y pasa a `selecting-destination`. Si está en `selecting-destination`, establece el destino y calcula la ruta.
+- `handleMapPress`: mismo comportamiento que `handleMarkerPress` pero para toques en el mapa vacío
+- Nuevo panel flotante (`plannerPanel`) con:
+  - Estado actual (seleccionando origen, seleccionando destino, o planificado)
+  - Indicadores visuales de origen (punto verde) y destino (punto rojo) con coordenadas/nombres
+  - Botón "Usar mi ubicación como origen" cuando está en modo `selecting-origin`
+  - Botón "Intercambiar" y "Iniciar ruta" cuando está planificado
+  - Botón "X" para cancelar
+- Nuevos marcadores en el mapa para origen (bandera verde) y destino (pin rojo) usando `Marker` directo de react-native-maps
+- `handleClearRoute` también resetea el planner
+- Nuevos estilos: `plannerPanel`, `plannerHeader`, `plannerRow`, `plannerDot`, `plannerField`, `plannerConnector`, `plannerLine`, `plannerHint`, `plannerActions`, `plannerSwapBtn`, `plannerCalcBtn`, `plannerUseGpsBtn`, `originMarker`, `destMarker`
+- Nuevo prop `onStartPlanner` en `<LocationDetailSheet>`
+
+#### `src/features/map/presentation/location-detail-sheet.tsx`
+- Agregado prop `onStartPlanner?: () => void` a la interfaz `Props`
+- Agregado botón "Elegir origen y destino" (icono `Map`) debajo de "Mas Informacion"
+- Nuevo estilo `plannerBtn` y `plannerT`
+
+### Comportamiento resultante
+1. **Flujo normal**: tocar marcador → bottom sheet → "Elegir origen y destino" → se abre el panel planificador
+2. **Seleccionar origen**: tocar en el mapa o marcador establece el ORIGEN (punto verde)
+3. **Seleccionar destino**: tocar en el mapa o marcador establece el DESTINO y calcula la ruta automáticamente
+4. **Intercambiar**: botón para invertir origen ↔ destino
+5. **Usar GPS**: botón "Usar mi ubicación como origen" para quien está fuera del campus
+6. **Iniciar ruta**: cierra el panel y muestra la tarjeta de ruta con distancia/tiempo estimado

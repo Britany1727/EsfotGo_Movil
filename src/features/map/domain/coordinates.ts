@@ -22,6 +22,8 @@ export interface MapMarkerData {
   description?: string;
   category: string;
   imageUrl?: string;
+  image360?: string;
+  mediaType?: string;
   clusterWeight: number;
 }
 

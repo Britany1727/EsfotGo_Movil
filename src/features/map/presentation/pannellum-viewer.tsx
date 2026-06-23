@@ -4,13 +4,18 @@ import {
   StyleSheet,
   ActivityIndicator,
   Text,
+  Pressable,
 } from 'react-native';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { X } from 'lucide-react-native';
 import WebView from 'react-native-webview';
 import { LightTheme as T } from '@/constants/design-system';
 
 interface Props {
   imageUrl: string;
-  onClose?: () => void;
+  onClose: () => void;
+  title?: string;
 }
 
 function generateHtml(imageUrl: string): string {
@@ -27,9 +32,6 @@ function generateHtml(imageUrl: string): string {
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
     #container { width: 100%; height: 100%; }
-    .pnlm-load-button { display: none !important; }
-    .pnlm-controls { display: none !important; }
-    .pnlm-compass { display: none !important; }
   </style>
 </head>
 <body>
@@ -62,48 +64,98 @@ function generateHtml(imageUrl: string): string {
 </html>`;
 }
 
-export function PannellumViewer({ imageUrl }: Props) {
+export function PannellumViewer({ imageUrl, onClose, title }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-
+  const insets = useSafeAreaInsets();
   const html = generateHtml(imageUrl);
 
-  if (error) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.errorText}>No se pudo cargar la imagen 360°</Text>
-      </View>
-    );
-  }
-
   return (
-    <View style={styles.container}>
-      {loading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color={T.primary} />
-          <Text style={styles.loadingText}>Cargando panorama 360°...</Text>
+    <Animated.View
+      entering={FadeIn.duration(300)}
+      exiting={FadeOut.duration(200)}
+      style={styles.root}
+    >
+      <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
+        <Text style={styles.topBarTitle} numberOfLines={1}>{title ?? 'Vista 360°'}</Text>
+        <Pressable style={styles.closeBtn} onPress={onClose} hitSlop={12}>
+          <X size={22} strokeWidth={2.5} color="#FFFFFF" />
+        </Pressable>
+      </View>
+
+      {error ? (
+        <View style={styles.center}>
+          <Text style={styles.errorText}>No se pudo cargar la imagen 360°</Text>
+        </View>
+      ) : (
+        <View style={styles.webviewWrap}>
+          {loading && (
+            <View style={styles.loadingOverlay}>
+              <ActivityIndicator size="large" color={T.primary} />
+              <Text style={styles.loadingText}>Cargando panorama 360°...</Text>
+            </View>
+          )}
+          <WebView
+            source={{ html, baseUrl: 'https://cdn.jsdelivr.net' }}
+            style={styles.webview}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            allowFileAccess={true}
+            allowUniversalAccessFromFileURLs={true}
+            mixedContentMode="always"
+            originWhitelist={['*']}
+            onLoad={() => setLoading(false)}
+            onError={() => { setLoading(false); setError(true); }}
+            scrollEnabled={false}
+            bounces={false}
+          />
         </View>
       )}
-      <WebView
-        source={{ html, baseUrl: 'https://cdn.jsdelivr.net' }}
-        style={styles.webview}
-        javaScriptEnabled={true}
-        domStorageEnabled={true}
-        allowFileAccess={true}
-        allowUniversalAccessFromFileURLs={true}
-        mixedContentMode="always"
-        originWhitelist={['*']}
-        onLoad={() => setLoading(false)}
-        onError={() => { setLoading(false); setError(true); }}
-        scrollEnabled={false}
-        bounces={false}
-      />
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: '#000000',
+    zIndex: 9999, elevation: 9999,
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+  },
+  topBarTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#CC0000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000000',
+  },
+  errorText: {
+    color: T.error,
+    fontSize: 15,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  webviewWrap: {
     flex: 1,
     backgroundColor: '#000000',
   },
@@ -123,17 +175,5 @@ const styles = StyleSheet.create({
   loadingText: {
     color: T.textSecondary,
     fontSize: 14,
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#000000',
-  },
-  errorText: {
-    color: T.error,
-    fontSize: 15,
-    textAlign: 'center',
-    paddingHorizontal: 20,
   },
 });

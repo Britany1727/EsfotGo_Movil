@@ -1,8 +1,8 @@
 import React, { useRef, useMemo, useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
 import BottomSheet, { BottomSheetView, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import * as Haptics from 'expo-haptics';
-import { Navigation, Info, Star, XCircle } from 'lucide-react-native';
+import { Navigation, Info, Star, XCircle, Map } from 'lucide-react-native';
 import { getCategoryConfig } from '@/features/map/application/map.hooks';
 import type { CampusLocation } from '@/features/map/domain/location.entity';
 import { useFavoritesStore } from '@/store/favorites.store';
@@ -15,9 +15,10 @@ interface Props {
   onNavigate?: (l: CampusLocation) => void;
   onMoreInfo?: (l: CampusLocation) => void;
   onClearRoute?: () => void;
+  onStartPlanner?: () => void;
 }
 
-export function LocationDetailSheet({ location, onClose, onNavigate, onMoreInfo, onClearRoute }: Props) {
+export function LocationDetailSheet({ location, onClose, onNavigate, onMoreInfo, onClearRoute, onStartPlanner }: Props) {
   const sheetRef = useRef<BottomSheet>(null);
   const [routeActive, setRouteActive] = useState(false);
   const isFav = useFavoritesStore((s) => location ? s.isFavorite(location.id) : false);
@@ -103,6 +104,33 @@ export function LocationDetailSheet({ location, onClose, onNavigate, onMoreInfo,
             )}
           </View>
 
+          {(() => {
+            const imageSrc = location.image360 || location.image || location.imageUrl;
+            const is360 = location.mediaType === '360' || !!location.image360;
+            if (imageSrc) {
+              return (
+                <Pressable
+                  style={s.imgPreview}
+                  onPress={() => onMoreInfo?.(location)}
+                >
+                  <Image source={{ uri: imageSrc }} style={s.imgPreviewImg} />
+                  {is360 && (
+                    <>
+                      <View style={s.panoBadge}>
+                        <Text style={s.panoBadgeT}>360°</Text>
+                      </View>
+                      <View style={s.panoOverlay}>
+                        <Text style={s.panoIcon}>🔭</Text>
+                        <Text style={s.panoOverlayT}>Ver en 360°</Text>
+                      </View>
+                    </>
+                  )}
+                </Pressable>
+              );
+            }
+            return null;
+          })()}
+
           {location.description && (
             <Text style={s.desc}>{location.description}</Text>
           )}
@@ -140,6 +168,19 @@ export function LocationDetailSheet({ location, onClose, onNavigate, onMoreInfo,
             >
               <Info size={18} strokeWidth={2} color={T.primary} />
               <Text style={s.infoT}>Mas Informacion</Text>
+            </Pressable>
+          )}
+
+          {onStartPlanner && (
+            <Pressable
+              style={s.plannerBtn}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                onStartPlanner();
+              }}
+            >
+              <Map size={18} strokeWidth={2} color={T.highlight} />
+              <Text style={s.plannerT}>Elegir origen y destino</Text>
             </Pressable>
           )}
         </BottomSheetScrollView>
@@ -205,8 +246,56 @@ const s = StyleSheet.create({
     ...Shadows.sm,
   },
   infoT: { ...Typography.button, color: T.primary, fontSize: 15 },
+  plannerBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 10, backgroundColor: T.surface, borderRadius: 16,
+    padding: 16, borderWidth: 1.5, borderColor: T.highlight + '40',
+    ...Shadows.sm,
+  },
+  plannerT: { ...Typography.button, color: T.highlight, fontSize: 15 },
   favBtn: {
     width: 40, height: 40, borderRadius: 20,
     justifyContent: 'center', alignItems: 'center',
+  },
+  imgPreview: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: T.surface,
+    position: 'relative',
+  },
+  imgPreviewImg: {
+    width: '100%',
+    height: 180,
+    resizeMode: 'cover',
+  },
+  panoBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: 'rgba(0,80,180,0.85)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  panoBadgeT: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  panoOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+  },
+  panoIcon: {
+    fontSize: 32,
+  },
+  panoOverlayT: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

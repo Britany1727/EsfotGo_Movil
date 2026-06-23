@@ -1,7 +1,5 @@
 import React, { memo, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import type { RouteCalculation } from '@/features/map/services/route-calculator';
-import { formatRouteInfo } from '@/features/map/services/route-calculator';
 import type { GraphRouteResult } from '@/features/graph/application/graph-route.service';
 import { formatGraphRouteInfo } from '@/features/graph/application/graph-route.service';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
@@ -9,21 +7,19 @@ import { Navigation, X } from 'lucide-react-native';
 import { LightTheme as T, Shadows, Sizes, Typography } from '@/constants/design-system';
 
 interface RouteInfoCardProps {
-  route: RouteCalculation | null;
   graphRoute: GraphRouteResult | null;
   isVisible: boolean;
   onClear: () => void;
 }
 
 export const RouteInfoCard = memo(
-  function RouteInfoCard({ route, graphRoute, isVisible, onClear }: RouteInfoCardProps) {
+  function RouteInfoCard({ graphRoute, isVisible, onClear }: RouteInfoCardProps) {
     const info = useMemo(() => {
       if (graphRoute) return formatGraphRouteInfo(graphRoute);
-      if (route) return formatRouteInfo(route);
       return null;
-    }, [route, graphRoute]);
+    }, [graphRoute]);
 
-    if (!isVisible || (!route && !graphRoute) || !info) return null;
+    if (!isVisible || !graphRoute || !info) return null;
 
     return (
       <Animated.View
@@ -54,7 +50,6 @@ export const RouteInfoCard = memo(
   },
   (prev, next) =>
     prev.isVisible === next.isVisible &&
-    prev.route?.distance === next.route?.distance &&
     prev.graphRoute?.distance === next.graphRoute?.distance &&
     prev.graphRoute?.nodeCount === next.graphRoute?.nodeCount,
 );

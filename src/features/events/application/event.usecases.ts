@@ -1,5 +1,5 @@
 import { IEventRepository } from '../domain/event.repository';
-import type { Event } from '../domain/event.entity';
+import type { Event, EventCreateInput, EventUpdateInput } from '../domain/event.entity';
 import type { PaginatedResponse, User } from '@/core/types';
 import { PermissionError } from '@/core/errors/app-error';
 import { hasPermission } from '@/constants/roles';
@@ -29,7 +29,7 @@ export class CreateEventUseCase {
 
   async execute(
     _user: User | null,
-    input: Omit<Event, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>
+    input: EventCreateInput
   ): Promise<Event> {
     return this.eventRepository.createEvent({
       ...input,
@@ -41,7 +41,7 @@ export class CreateEventUseCase {
 export class UpdateEventUseCase {
   constructor(private readonly eventRepository: IEventRepository) {}
 
-  async execute(user: User | null, eventId: string, input: Partial<Event>): Promise<Event> {
+  async execute(user: User | null, eventId: string, input: EventUpdateInput): Promise<Event> {
     if (!user || !hasPermission(user.role, 'update:events')) {
       throw new PermissionError();
     }

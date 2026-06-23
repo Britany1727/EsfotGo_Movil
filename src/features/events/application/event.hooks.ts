@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState, useRef, useCallback } from 'react';
 import { ExpressEventRepository } from '../infrastructure/express-event.repository';
-import type { Event, EventDateFilter } from '../domain/event.entity';
+import type { Event, EventDateFilter, EventCreateInput, EventUpdateInput } from '../domain/event.entity';
 import { CreateEventUseCase, UpdateEventUseCase, DeleteEventUseCase, GetEventDetailUseCase } from './event.usecases';
 import { useAuthStore } from '@/store/auth.store';
 import { NotificationService } from '@/core/notifications/notification.service';
@@ -116,7 +116,7 @@ export function useCreateEvent() {
   const user = useAuthStore((s) => s.user);
 
   return useMutation({
-    mutationFn: (input: Omit<Event, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>) =>
+    mutationFn: (input: EventCreateInput) =>
       createEventUC.execute(user, input),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
@@ -134,7 +134,7 @@ export function useUpdateEvent() {
   const user = useAuthStore((s) => s.user);
 
   return useMutation({
-    mutationFn: ({ id, input }: { id: string; input: Partial<Event> }) =>
+    mutationFn: ({ id, input }: { id: string; input: EventUpdateInput }) =>
       updateEventUC.execute(user, id, input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['events'] });

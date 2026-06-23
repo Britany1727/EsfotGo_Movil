@@ -21,3 +21,11 @@ export type EventCategory =
   | 'todos';
 
 export type EventDateFilter = 'todos' | 'proximos' | 'este_mes' | 'pasados';
+
+export type EventCreateInput = Omit<Event, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'> & {
+  imageBase64?: string;
+};
+
+export type EventUpdateInput = Partial<Event> & {
+  imageBase64?: string;
+};

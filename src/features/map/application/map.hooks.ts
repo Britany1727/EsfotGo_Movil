@@ -43,6 +43,8 @@ function locationToMarker(loc: CampusLocation): MapMarkerData {
     description: loc.description ?? undefined,
     category: loc.category,
     imageUrl: loc.imageUrl ?? undefined,
+    image360: loc.image360,
+    mediaType: loc.mediaType,
     clusterWeight: 1,
   };
 }

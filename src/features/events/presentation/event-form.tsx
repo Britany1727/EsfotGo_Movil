@@ -8,6 +8,7 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { useState, useCallback } from 'react';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
+import { readAsStringAsync } from 'expo-file-system/legacy';
 import { Image as ExpoImage } from 'expo-image';
 import Toast from 'react-native-toast-message';
 import { X } from 'lucide-react-native';
@@ -97,6 +98,7 @@ export function EventForm({ onClose, onSuccess, editEvent }: EventFormProps) {
 
   const [picker, setPicker] = useState<PickerState>({ visible: false, mode: 'date', field: 'startDate' });
   const [pickedImage, setPickedImage] = useState<string | null>(editEvent?.imageUrl ?? null);
+  const [imageBase64, setImageBase64] = useState<string | undefined>(undefined);
 
   const isLoading = createMutation.isPending || updateMutation.isPending;
 
@@ -118,8 +120,23 @@ export function EventForm({ onClose, onSuccess, editEvent }: EventFormProps) {
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      setPickedImage(result.assets[0].uri);
-      setValue('imageUrl', result.assets[0].uri, { shouldDirty: true });
+      const uri = result.assets[0].uri;
+      setPickedImage(uri);
+      try {
+        const base64 = await readAsStringAsync(uri, { encoding: 'base64' });
+        const ext = uri.split('.').pop()?.toLowerCase() ?? 'jpg';
+        const MIME_MAP: Record<string, string> = {
+          jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+          gif: 'image/gif', webp: 'image/webp',
+        };
+        const mime = MIME_MAP[ext] ?? 'image/jpeg';
+        setImageBase64(`data:${mime};base64,${base64}`);
+      } catch (e) {
+        console.warn('[EventForm] Error reading image for base64:', e);
+        Toast.show({ type: 'error', text1: 'Error', text2: 'No se pudo procesar la imagen' });
+        return;
+      }
+      setValue('imageUrl', '', { shouldDirty: true });
     }
   }, [setValue]);
 
@@ -162,7 +179,7 @@ export function EventForm({ onClose, onSuccess, editEvent }: EventFormProps) {
     try {
       const safeStartTime = data.startTime || '00:00';
       const safeEndTime = data.endTime || '00:00';
-      const basePayload = {
+      const basePayload: Record<string, unknown> = {
         title: data.title,
         description: data.description,
         location: data.location,
@@ -174,19 +191,26 @@ export function EventForm({ onClose, onSuccess, editEvent }: EventFormProps) {
           : null,
         organizer: data.organizer || null,
       };
+      if (data.imageUrl && data.imageUrl.startsWith('http')) {
+        basePayload.imageUrl = data.imageUrl;
+      } else if (imageBase64) {
+        basePayload.imageBase64 = imageBase64;
+        basePayload.imageUrl = null;
+      }
 
       if (isEdit && editEvent) {
-        await updateMutation.mutateAsync({ id: editEvent.id, input: basePayload });
+        await updateMutation.mutateAsync({ id: editEvent.id, input: basePayload as any });
       } else {
-        await createMutation.mutateAsync(basePayload);
+        await createMutation.mutateAsync(basePayload as any);
       }
 
       onSuccess?.();
       onClose();
     } catch (error) {
+      console.log('[EventForm] onSubmit error:', error);
       Toast.show({ type: 'error', text1: 'Error', text2: error instanceof Error ? error.message : 'Ocurrió un error inesperado' });
     }
-  }, [isEdit, editEvent, createMutation, updateMutation, onSuccess, onClose]);
+  }, [isEdit, editEvent, imageBase64, createMutation, updateMutation, onSuccess, onClose]);
 
   const handleCategorySelect = useCallback((cat: EventFormCategory) => {
     setSelectedCategory(cat);
@@ -325,6 +349,7 @@ export function EventForm({ onClose, onSuccess, editEvent }: EventFormProps) {
                 style={styles.imageRemoveBtn}
                 onPress={() => {
                   setPickedImage(null);
+                  setImageBase64(undefined);
                   setValue('imageUrl', '', { shouldDirty: true });
                 }}
               >
