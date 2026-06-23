@@ -1,7 +1,8 @@
 import * as SecureStore from 'expo-secure-store';
 import { httpClient } from '@/services/http-client';
 import { AppError } from '@/core/errors/app-error';
-import type { Tutoria, TutoriaEnrollment } from '../domain/tutoria.entity';
+import type { Tutoria, TutoriaEnrollment, TutoriaStatus } from '../domain/tutoria.entity';
+// note: TutoriaStatus used in STATUS_MAP and normalizeStatus
 import { isDevMode } from '@/core/config/env';
 
 const AUTH_TOKEN_KEY = 'esfotgo_jwt_token';
@@ -27,6 +28,17 @@ interface TutoriaResponseDto {
 
 // ─── Mappers ────────────────────────────────────────────────
 
+const STATUS_MAP: Record<string, TutoriaStatus> = {
+  programada: 'programada', pendiente: 'pendiente', finalizada: 'finalizada', cancelada: 'cancelada',
+  scheduled: 'programada', pending: 'pendiente', completed: 'finalizada', cancelled: 'cancelada',
+  Programada: 'programada', Pendiente: 'pendiente', Finalizada: 'finalizada', Cancelada: 'cancelada',
+  PROGRAMADA: 'programada', PENDIENTE: 'pendiente', FINALIZADA: 'finalizada', CANCELADA: 'cancelada',
+};
+
+function normalizeStatus(raw: string | undefined): TutoriaStatus {
+  return STATUS_MAP[raw ?? ''] ?? 'programada';
+}
+
 function mapDtoToTutoria(dto: TutoriaResponseDto): Tutoria {
   const horarios = (dto.horarios ?? []).map((h) => ({
     dia: h.dia,
@@ -46,7 +58,7 @@ function mapDtoToTutoria(dto: TutoriaResponseDto): Tutoria {
     maxStudents: dto.cupo_maximo ?? 20,
     enrolledCount: dto.inscritos ?? 0,
     horarios,
-    status: (dto.estado ?? 'programada') as Tutoria['status'],
+    status: normalizeStatus(dto.estado),
     createdBy: dto.creado_por ?? '',
     createdAt: dto.created_at ?? new Date().toISOString(),
     updatedAt: dto.updated_at ?? new Date().toISOString(),
@@ -62,7 +74,6 @@ function mapTutoriaToBackendDto(input: Omit<Tutoria, 'id' | 'createdAt' | 'updat
     fecha: input.date,
     duracion: input.duration,
     cupo_maximo: input.maxStudents,
-    estado: input.status,
     creado_por: input.createdBy || undefined,
     horarios: (input.horarios && input.horarios.length > 0)
       ? input.horarios.map((h) => ({ dia: h.dia, horaInicio: h.horaInicio, horaFin: h.horaFin }))
@@ -79,7 +90,6 @@ function mapTutoriaUpdateToBackendDto(input: Partial<Tutoria>): Record<string, u
   if (input.date !== undefined) dto.fecha = input.date;
   if (input.duration !== undefined) dto.duracion = input.duration;
   if (input.maxStudents !== undefined) dto.cupo_maximo = input.maxStudents;
-  if (input.status !== undefined) dto.estado = input.status;
   if (input.createdBy !== undefined) dto.creado_por = input.createdBy;
   if (input.horarios !== undefined) {
     dto.horarios = input.horarios.map((h) => ({ dia: h.dia, horaInicio: h.horaInicio, horaFin: h.horaFin }));

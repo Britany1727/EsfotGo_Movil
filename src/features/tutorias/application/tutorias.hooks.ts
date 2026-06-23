@@ -41,24 +41,28 @@ export function useTutorias() {
 
   const createTutoria = useMutation({
     mutationFn: (input: Omit<Tutoria, 'id' | 'createdAt' | 'updatedAt' | 'enrolledCount'>) =>
-      repository.create(input),
+      repository.create({ ...input, createdBy: user?.id ?? '' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tutorias'] }),
+    onError: (err) => { console.log('[TutoriasHook] Error creando tutoría:', err); },
   });
 
   const updateTutoria = useMutation({
     mutationFn: ({ id, input }: { id: string; input: Partial<Tutoria> }) =>
       repository.update(id, input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tutorias'] }),
+    onError: (err) => { console.log('[TutoriasHook] Error actualizando tutoría:', err); },
   });
 
   const deleteTutoria = useMutation({
     mutationFn: (id: string) => repository.delete(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tutorias'] }),
+    onError: (err) => { console.log('[TutoriasHook] Error eliminando tutoría:', err); },
   });
 
   const cancelTutoria = useMutation({
     mutationFn: (id: string) => repository.update(id, { status: 'cancelada' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tutorias'] }),
+    onError: (err) => { console.log('[TutoriasHook] Error cancelando tutoría:', err); },
   });
 
   return {

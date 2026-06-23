@@ -94,6 +94,8 @@ export default function MapScreen() {
   const { data: campusGraph, error: graphError } = useCampusGraph();
   const optimalGraphRoute = useOptimalRoute(campusGraph, fromNodeId, toNodeId);
   const { clusters } = useMapClusters(region, selectedCategory);
+  const clustersRef = useRef(clusters);
+  clustersRef.current = clusters;
 
   React.useEffect(() => {
     if (userLocation && !initialCenteredRef.current && mapRef.current) {
@@ -114,6 +116,47 @@ export default function MapScreen() {
     return { waypoints: [originPt, destPt], distance: d, etaMinutes: Math.round(d / 83.33), nodeCount: 2 };
   }
 
+  function buildCampusRoute(
+    origin: GeoCoordinate,
+    dest: GeoCoordinate,
+    markers: (MapMarkerData | ClusterPoint)[],
+  ): GraphRouteResult | null {
+    const locs = markers.filter((m): m is MapMarkerData => !isClusterPoint(m));
+    if (locs.length === 0) return null;
+
+    const SEARCH = 500;
+    const nearOrigin = locs
+      .map((m) => ({ m, d: haversineMeters(origin.latitude, origin.longitude, m.coordinate.latitude, m.coordinate.longitude) }))
+      .filter(({ d }) => d <= SEARCH)
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 2);
+    const nearDest = locs
+      .map((m) => ({ m, d: haversineMeters(dest.latitude, dest.longitude, m.coordinate.latitude, m.coordinate.longitude) }))
+      .filter(({ d }) => d <= SEARCH)
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 2);
+
+    const waypoints: GeoCoordinate[] = [origin];
+    const used = new Set<string>();
+    for (const { m, d } of nearOrigin) {
+      if (d < 15 || used.has(m.id)) continue;
+      used.add(m.id);
+      waypoints.push(m.coordinate);
+    }
+    for (const { m, d } of nearDest) {
+      if (d < 15 || used.has(m.id)) continue;
+      used.add(m.id);
+      waypoints.push(m.coordinate);
+    }
+    if (waypoints[waypoints.length - 1] !== dest) waypoints.push(dest);
+
+    let totalDist = 0;
+    for (let i = 0; i < waypoints.length - 1; i++) {
+      totalDist += haversineMeters(waypoints[i].latitude, waypoints[i].longitude, waypoints[i + 1].latitude, waypoints[i + 1].longitude);
+    }
+    return { waypoints, distance: Math.round(totalDist), etaMinutes: Math.round(totalDist / 83.33), nodeCount: waypoints.length };
+  }
+
   const computeRoute = useCallback(
     (origin?: GeoCoordinate, dest?: GeoCoordinate) => {
       if (!dest) return;
@@ -128,7 +171,13 @@ export default function MapScreen() {
       };
 
       if (!campusGraph || campusGraph.nodes.length === 0) {
-        console.log('[MapScreen] Sin grafo, usando línea directa');
+        const campusRoute = buildCampusRoute(originPt, dest, clustersRef.current);
+        if (campusRoute) {
+          console.log('[MapScreen] Ruta por marcadores del campus:', campusRoute.waypoints.length, 'puntos');
+          setGraphRoute(campusRoute);
+          return;
+        }
+        console.log('[MapScreen] Sin grafo ni marcadores, usando línea directa');
         setGraphRoute(directRoute(originPt, dest));
         return;
       }
@@ -151,7 +200,9 @@ export default function MapScreen() {
         setFromNodeId(fromNode);
         setToNodeId(toNode);
       } else {
-        console.log('[MapScreen] Nodos no encontrados, usando línea directa');
+        console.log('[MapScreen] Nodos no encontrados, usando marcadores del campus');
+        const campusRoute = buildCampusRoute(originPt, dest, clustersRef.current);
+        if (campusRoute) { setGraphRoute(campusRoute); return; }
         setGraphRoute(directRoute(originPt, dest));
       }
     },

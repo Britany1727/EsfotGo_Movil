@@ -40,9 +40,31 @@ export default function TutoriasScreen() {
     return true;
   });
 
-  const handleCreate = useCallback(async (input: Omit<Tutoria, 'id' | 'createdAt' | 'updatedAt' | 'enrolledCount'>) => { await createTutoria.mutateAsync(input); setShowForm(false); }, [createTutoria]);
-  const handleUpdate = useCallback(async (input: Omit<Tutoria, 'id' | 'createdAt' | 'updatedAt' | 'enrolledCount'>) => { if (!editTarget) return; await updateTutoria.mutateAsync({ id: editTarget.id, input }); setEditTarget(null); }, [editTarget, updateTutoria]);
-  const handleDelete = useCallback((item: Tutoria) => { Alert.alert('Eliminar tutoría', `¿Eliminar "${item.title}"?`, [{ text: 'Cancelar', style: 'cancel' }, { text: 'Eliminar', style: 'destructive', onPress: () => deleteTutoria.mutate(item.id) }]); }, [deleteTutoria]);
+  const handleCreate = useCallback(async (input: Omit<Tutoria, 'id' | 'createdAt' | 'updatedAt' | 'enrolledCount'>) => {
+    try {
+      await createTutoria.mutateAsync(input);
+      setShowForm(false);
+    } catch (e) {
+      Alert.alert('Error', (e as Error)?.message ?? 'No se pudo crear la tutoría');
+    }
+  }, [createTutoria]);
+  const handleUpdate = useCallback(async (input: Omit<Tutoria, 'id' | 'createdAt' | 'updatedAt' | 'enrolledCount'>) => {
+    if (!editTarget) return;
+    try {
+      await updateTutoria.mutateAsync({ id: editTarget.id, input });
+      setEditTarget(null);
+    } catch (e) {
+      Alert.alert('Error', (e as Error)?.message ?? 'No se pudo actualizar la tutoría');
+    }
+  }, [editTarget, updateTutoria]);
+  const handleDelete = useCallback((item: Tutoria) => {
+    Alert.alert('Eliminar tutoría', `¿Eliminar "${item.title}"?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Eliminar', style: 'destructive', onPress: async () => {
+        try { await deleteTutoria.mutateAsync(item.id); } catch (e) { Alert.alert('Error', (e as Error)?.message ?? 'No se pudo eliminar'); }
+      }},
+    ]);
+  }, [deleteTutoria]);
 
   const renderItem = useCallback(({ item }: { item: Tutoria }) => {
     const isPast = item.status === 'finalizada' || item.status === 'cancelada';
