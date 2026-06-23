@@ -1,16 +1,10 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { io, Socket } from 'socket.io-client';
-import { useAuthStore } from '@/store/auth.store';
+import { useEffect, useState, useCallback } from 'react';
 import { httpClient } from '@/services/http-client';
-import { env } from '@/core/config/env';
+import { conectarSocket, getSocket } from '@/services/socket';
+import { useAuthStore } from '@/store/auth.store';
 import { PrivateChatRepository } from '../infrastructure/private-chat.repository';
 import { NotificationService } from '@/core/notifications/notification.service';
 import type { PrivateMessage, Conversation } from '../domain/private-message.entity';
-
-function getSocketUrl(): string {
-  const base = env.EXPO_PUBLIC_API_BASE_URL;
-  return base.replace(/\/api\/?$/, '');
-}
 
 export function usePrivateChat(conversationId: string | null) {
   const user = useAuthStore((s) => s.user);
@@ -18,7 +12,6 @@ export function usePrivateChat(conversationId: string | null) {
 
   const [messages, setMessages] = useState<PrivateMessage[]>([]);
   const [isConnected, setIsConnected] = useState(false);
-  const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
     if (!conversationId) return;
@@ -36,21 +29,22 @@ export function usePrivateChat(conversationId: string | null) {
         console.log('[usePrivateChat] Error cargando historial vía REST:', (err as Error)?.message);
       });
 
-    const socket: Socket = io(getSocketUrl(), {
-      autoConnect: true,
-      transports: ['websocket'],
-      forceNew: true,
-    });
-    socketRef.current = socket;
+    const socket = conectarSocket();
 
     socket.on('connect', () => {
       setIsConnected(true);
-      socket.emit('join-room', { conversationId, username });
+      socket.emit('usuario-conectado', {
+        _id: user?.id ?? '',
+        nombre: user?.fullName ?? '',
+        email: user?.email ?? '',
+        rol: user?.role ?? '',
+      });
+      socket.emit('unirse-conversacion', conversationId);
     });
 
     socket.on('disconnect', () => setIsConnected(false));
 
-    socket.on('private-message', (msg: PrivateMessage) => {
+    socket.on('mensaje-privado-recibido', (msg: PrivateMessage) => {
       setMessages((prev) => {
         if (prev.some((m) => m._id === msg._id)) return prev;
         return [...prev, msg];
@@ -64,16 +58,14 @@ export function usePrivateChat(conversationId: string | null) {
       }
     });
 
-    socket.on('previous-messages', (msgs: PrivateMessage[]) => {
-      if (!cancelled) setMessages(msgs);
-    });
-
     return () => {
       cancelled = true;
-      socket.emit('leave-room', { conversationId });
-      socket.disconnect();
+      socket.emit('salir-conversacion', conversationId);
+      socket.off('connect');
+      socket.off('disconnect');
+      socket.off('mensaje-privado-recibido');
     };
-  }, [conversationId, username]);
+  }, [conversationId, username, user?.id, user?.fullName, user?.email, user?.role]);
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -107,13 +99,18 @@ export function usePrivateChat(conversationId: string | null) {
           console.log('[usePrivateChat] Error guardando mensaje vía REST:', (err as Error)?.message);
         });
 
-      if (socketRef.current?.connected) {
-        socketRef.current.emit('private-message', {
-          conversationId,
-          senderId: user.id,
-          senderName: username,
-          text: text.trim(),
-        });
+      try {
+        const socket = getSocket();
+        if (socket.connected) {
+          socket.emit('enviar-mensaje-privado', {
+            conversationId,
+            senderId: user.id,
+            senderName: username,
+            text: text.trim(),
+          });
+        }
+      } catch {
+        // Socket not connected
       }
     },
     [conversationId, user, username],

@@ -34,7 +34,6 @@ interface GraphNodeDto {
   longitude?: number; longitud?: number;
   tipo?: string;
   piso?: number;
-  edificioId?: string; edificio?: string;
   referenciaId?: string;
   referenciaModelo?: string;
   coord?: { lat: number; lng: number };
@@ -62,7 +61,6 @@ function mapDtoToNode(dto: GraphNodeDto): GraphNode {
     longitude: coords?.lng ?? dto.longitude ?? dto.longitud ?? 0,
     type: (dto.tipo as GraphNode['type']) ?? 'punto_interes',
     floor: dto.piso ?? 1,
-    buildingId: dto.edificioId ?? dto.edificio ?? '',
     referenceId: dto.referenciaId ?? null,
     referenceModel: (dto.referenciaModelo as GraphNode['referenceModel']) ?? null,
   };
@@ -104,14 +102,13 @@ export class ExpressGraphRepository implements IGraphRepository {
   }
 
   async upsertNode(node: Omit<GraphNode, 'id'> & { id?: string }): Promise<GraphNode> {
-    if (isDevMode()) return { ...node, id: node.id ?? `mock-${Date.now()}`, type: node.type ?? 'punto_interes', floor: node.floor ?? 1, buildingId: node.buildingId ?? '', referenceId: node.referenceId ?? null, referenceModel: node.referenceModel ?? null };
+    if (isDevMode()) return { ...node, id: node.id ?? `mock-${Date.now()}`, type: node.type ?? 'punto_interes', floor: node.floor ?? 1, referenceId: node.referenceId ?? null, referenceModel: node.referenceModel ?? null };
     const t = await this.token();
     const payload = sanitizePayload({
       nombre: node.label.trim(),
       tipo: node.type ?? 'punto_interes',
       coordenadas: { lat: Number(node.latitude), lng: Number(node.longitude) },
       piso: Number(node.floor) || 1,
-      edificioId: isValidObjectId(node.buildingId) ? node.buildingId : undefined,
       referenciaId: isValidObjectId(node.referenceId) ? node.referenceId : null,
       referenciaModelo: node.referenceModel || null,
     });

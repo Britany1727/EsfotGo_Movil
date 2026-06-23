@@ -11,13 +11,12 @@ import type {
 } from './mongo-dtos';
 import type { User, Role } from '@/core/types';
 import type { Event, EventCategory } from '@/features/events/domain/event.entity';
-import type { CampusLocation } from '@/features/map/domain/location.entity';
+import type { CampusLocation, LocationMediaType } from '@/features/map/domain/location.entity';
 import type { RestrictedZone } from '@/features/admin/domain/poi.entity';
 import type { BusRoute, BusStop, BusLocation } from '@/features/polibus/domain/route.entity';
 import type { GraphNode, GraphEdge } from '@/features/graph/domain/graph.entity';
 import type { Favorite } from '@/features/favoritos/domain/favorite.entity';
-import type { Edificio } from '@/features/edificios/domain/edificio.entity';
-import type { AulaDto, EdificioDto, ChatMessageDto } from './mongo-dtos';
+import type { AulaDto, ChatMessageDto } from './mongo-dtos';
 
 // ─── Helpers ─────────────────────────────────────────────────
 
@@ -90,6 +89,9 @@ export function mapLocationDtoToCampusLocation(dto: LocationDto): CampusLocation
     latitude: normalizeCoord(dto.latitud ?? dto.latitude),
     longitude: normalizeCoord(dto.longitud ?? dto.longitude),
     imageUrl: dto.imagen ?? dto.image_url ?? dto.imageUrl ?? null,
+    image: dto.imagen ?? dto.image_url ?? dto.imageUrl ?? undefined,
+    image360: dto.imagen_360 ?? dto.image360 ?? undefined,
+    mediaType: (dto.tipo_media ?? dto.mediaType ?? undefined) as LocationMediaType,
     createdAt: normalizeDate(dto.created_at ?? dto.createdAt),
   };
 }
@@ -193,21 +195,6 @@ export function mapFavoriteDtoToFavorite(dto: FavoriteDto): Favorite {
   };
 }
 
-// ─── Edificio ────────────────────────────────────────────────
-
-export function mapEdificioDtoToEdificio(dto: EdificioDto): Edificio {
-  return {
-    id: extractId(dto),
-    nombre: dto.nombre ?? dto.name ?? '',
-    descripcion: dto.descripcion ?? dto.description ?? null,
-    latitud: normalizeCoord(dto.latitud ?? dto.latitude) || null,
-    longitud: normalizeCoord(dto.longitud ?? dto.longitude) || null,
-    pisos: dto.pisos ?? dto.floors ?? null,
-    imagen: dto.imagen ?? dto.image ?? null,
-    createdAt: normalizeDate(dto.created_at ?? dto.createdAt),
-  };
-}
-
 // ─── Aula (normalized) ───────────────────────────────────────
 
 export interface Aula {
@@ -216,7 +203,6 @@ export interface Aula {
   capacidad: number | null;
   ubicacion: string | null;
   estado: string | null;
-  edificioId: string | null;
   createdAt: string | null;
   updatedAt: string | null;
 }
@@ -228,7 +214,6 @@ export function mapAulaDtoToAula(dto: AulaDto): Aula {
     capacidad: dto.capacidad ?? null,
     ubicacion: dto.ubicacion ?? null,
     estado: dto.estado ?? null,
-    edificioId: (dto as unknown as Record<string, unknown>).edificio_id as string ?? null,
     createdAt: dto.createdAt ?? null,
     updatedAt: dto.updatedAt ?? null,
   };

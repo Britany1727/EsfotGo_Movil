@@ -15,8 +15,8 @@ import { useLocation } from '@/hooks/useLocation';
 import { useAuthStore } from '@/store/auth.store';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Link, useRouter } from 'expo-router';
-import { Building2, Bus, CalendarDays, MapPin, User } from 'lucide-react-native';
+import { Link, useNavigation, useRouter } from 'expo-router';
+import { Bus, CalendarDays, MapPin, User } from 'lucide-react-native';
 import React, { useMemo } from 'react';
 import {
   ActivityIndicator,
@@ -43,6 +43,7 @@ const CATEGORIES: Category[] = [
 
 export default function HomeScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
   const { status: gpsStatus } = useLocationPermission();
@@ -87,6 +88,7 @@ export default function HomeScreen() {
         userInitials={ue?.initials}
         userAvatar={(user as any)?.avatarUrl ?? null}
         onAvatarPress={() => router.push('/profile' as any)}
+        onMenuPress={() => (navigation.getParent() as any)?.openDrawer()}
       />
 
       <Animated.ScrollView
@@ -136,7 +138,7 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.delay(260)} style={styles.section}>
           <SectionHeader
             title="Campus"
-            icon={<Building2 size={20} strokeWidth={2} color={T.primary} />}
+            icon={<MapPin size={20} strokeWidth={2} color={T.primary} />}
           />
           <LocationCard
             location={

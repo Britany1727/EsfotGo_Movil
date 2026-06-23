@@ -6,7 +6,7 @@ import Animated, {
   FadeInDown, useSharedValue, useAnimatedScrollHandler,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import {
   Bell, CalendarDays, Bus, Map, MapPin, Settings2, User, KeyRound,
   Mail, HelpCircle, ChevronRight, LogOut, Star,
@@ -74,6 +74,7 @@ function SettingGroup({
 
 export default function ConfigScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const secureLogout = useAuthStore((s) => s.secureLogout);
 
   // Notification toggles
@@ -103,6 +104,7 @@ export default function ConfigScreen() {
       <GlassHeader
         scrollY={scrollY}
         onAvatarPress={() => router.push('/profile' as any)}
+        onMenuPress={() => (navigation as any).openDrawer()}
       />
 
       <Animated.ScrollView

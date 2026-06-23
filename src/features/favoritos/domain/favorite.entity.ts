@@ -1,4 +1,4 @@
-export type FavoriteItemType = 'aula' | 'edificio' | 'ruta' | 'ubicacion';
+export type FavoriteItemType = 'aula' | 'ruta' | 'ubicacion';
 
 export interface Favorite {
   id: string;

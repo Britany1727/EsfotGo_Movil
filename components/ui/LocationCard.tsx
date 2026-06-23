@@ -14,13 +14,6 @@ interface LocationCardProps {
   location?: { latitude: number; longitude: number } | null;
 }
 
-const CAMPUS_BUILDINGS = [
-  { name: 'Edificio de Sistemas', code: 'ESFOT' },
-  { name: 'Laboratorio de Redes', code: 'LAB-R' },
-  { name: 'Auditorio Principal', code: 'AUD' },
-  { name: 'Canchas Polideportivas', code: 'DEP' },
-];
-
 export function LocationCard({ location }: LocationCardProps) {
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({
@@ -58,15 +51,6 @@ export function LocationCard({ location }: LocationCardProps) {
             <ChevronRight size={20} strokeWidth={2} color={T.textTertiary} />
           </View>
 
-          <View style={styles.buildingsRow}>
-            {CAMPUS_BUILDINGS.map((b) => (
-              <View key={b.code} style={styles.buildingTag}>
-                <Text style={styles.buildingName} numberOfLines={1}>{b.name}</Text>
-                <Text style={styles.buildingCode}>{b.code}</Text>
-              </View>
-            ))}
-          </View>
-
           <View style={styles.mapBar}>
             <Text style={styles.mapBarText}>Ver mapa del campus</Text>
           </View>
@@ -102,32 +86,6 @@ const styles = StyleSheet.create({
   info: { flex: 1 },
   title: { ...Typography.h4, color: T.textPrimary },
   subtitle: { ...Typography.bodySm, color: T.textSecondary },
-  buildingsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  buildingTag: {
-    backgroundColor: T.neutralMuted,
-    borderRadius: Sizes.radiusSm,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  buildingName: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: T.textSecondary,
-    maxWidth: 100,
-  },
-  buildingCode: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: T.primary,
-    letterSpacing: 0.5,
-  },
   mapBar: {
     backgroundColor: T.primaryMuted,
     borderRadius: Sizes.radiusSm,

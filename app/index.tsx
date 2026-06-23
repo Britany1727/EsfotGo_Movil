@@ -1,4 +1,3 @@
-import { isDevMode } from '@/core/config/env';
 import { useAuthStore } from '@/store/auth.store';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect } from 'expo-router';
@@ -42,7 +41,6 @@ export default function SplashAndRedirect() {
   }, []);
 
   if (done && isInitialized) {
-    if (isDevMode() && !user) return <Redirect href="/auth/dev-login" />;
     if (user) return <Redirect href="/(drawer)/(tabs)" />;
     return <Redirect href="/auth/login" />;
   }

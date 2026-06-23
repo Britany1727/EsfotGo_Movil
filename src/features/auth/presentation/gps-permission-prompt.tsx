@@ -97,7 +97,7 @@ export function GpsPermissionPrompt({
         <View style={benefitsStyles.benefits}>
           <BenefitItem text="Mapa interactivo del campus" />
           <BenefitItem text="Rutas de Polibus en tiempo real" />
-          <BenefitItem text="Navegación entre edificios" />
+          <BenefitItem text="Navegación por el campus" />
         </View>
 
         {status === 'blocked' ? (

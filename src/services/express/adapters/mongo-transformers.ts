@@ -68,6 +68,8 @@ interface CreateLocationEntity {
   latitude: number;
   longitude: number;
   imageUrl?: string;
+  image360?: string;
+  mediaType?: string;
 }
 
 export function transformLocationToDto(input: CreateLocationEntity): Record<string, unknown> {
@@ -79,6 +81,8 @@ export function transformLocationToDto(input: CreateLocationEntity): Record<stri
   };
   if (input.description) dto.descripcion = input.description;
   if (input.imageUrl) dto.imagen = input.imageUrl;
+  if (input.image360) dto.imagen_360 = input.image360;
+  if (input.mediaType) dto.tipo_media = input.mediaType;
   return dto;
 }
 
@@ -90,6 +94,8 @@ export function transformLocationUpdateToDto(input: Partial<CreateLocationEntity
   if (input.latitude !== undefined) dto.latitud = input.latitude;
   if (input.longitude !== undefined) dto.longitud = input.longitude;
   if (input.imageUrl !== undefined) dto.imagen = input.imageUrl;
+  if (input.image360 !== undefined) dto.imagen_360 = input.image360;
+  if (input.mediaType !== undefined) dto.tipo_media = input.mediaType;
   return dto;
 }
 

@@ -17,16 +17,6 @@ const MOCK_FAVORITES: Favorite[] = [
     createdAt: new Date().toISOString(),
   },
   {
-    id: 'fav-3', itemId: 'e1', itemType: 'edificio', itemName: 'Edificio Principal ESFOT',
-    itemData: { code: 'EP-01', description: 'Edificio central con aulas', category: 'edificio' },
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'fav-4', itemId: 'e2', itemType: 'edificio', itemName: 'Bloque de Laboratorios',
-    itemData: { code: 'BL-02', description: 'Complejo de laboratorios', category: 'edificio' },
-    createdAt: new Date().toISOString(),
-  },
-  {
     id: 'fav-5', itemId: 'r1', itemType: 'ruta', itemName: 'Ruta al Edificio ESFOT',
     itemData: { origin: 'Mi ubicación', destination: 'Edificio Principal ESFOT', distanceMeters: 320, estimatedMinutes: 4, color: '#042c5c' },
     createdAt: new Date().toISOString(),
@@ -69,13 +59,11 @@ export function useFavoritesByType() {
   return {
     ...query,
     aulas: byType('aula'),
-    edificios: byType('edificio'),
     rutas: byType('ruta'),
     ubicaciones: byType('ubicacion'),
     total: query.data?.length ?? 0,
     countByType: {
       aulas: byType('aula').length,
-      edificios: byType('edificio').length,
       rutas: byType('ruta').length,
       ubicaciones: byType('ubicacion').length,
     },

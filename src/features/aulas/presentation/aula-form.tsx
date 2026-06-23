@@ -31,7 +31,6 @@ export function AulaForm({ onClose, onSuccess, editData }: AulaFormProps) {
       ubicacion: editData?.ubicacion ?? '',
       capacidad: editData?.capacidad?.toString() ?? '',
       estado: (editData?.estado as AulaEstado | undefined) ?? 'disponible',
-      edificio_id: (editData as unknown as Record<string, unknown>).edificio_id as string ?? '',
     },
   });
 
@@ -49,9 +48,6 @@ export function AulaForm({ onClose, onSuccess, editData }: AulaFormProps) {
         capacidad: data.capacidad ? parseInt(data.capacidad, 10) : undefined,
         estado: data.estado,
       };
-      if (data.edificio_id) {
-        (payload as Record<string, unknown>).edificio_id = data.edificio_id;
-      }
 
       if (isEdit && editData) {
         await updateMutation.mutateAsync({ id: editData._id, data: payload });
@@ -103,15 +99,6 @@ export function AulaForm({ onClose, onSuccess, editData }: AulaFormProps) {
             render={({ field: { onChange, onBlur, value } }) => (
               <RNInput style={[styles.input, errors.ubicacion && styles.inputErr]}
                 placeholder="Ej: Edificio ESFOT - Piso 1" placeholderTextColor={T.inputPlaceholder}
-                onBlur={onBlur} onChangeText={onChange} value={value} />
-            )} />
-        </Field>
-
-        <Field label="ID del Edificio" error={errors.edificio_id?.message}>
-          <Controller control={control} name="edificio_id"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <RNInput style={[styles.input, errors.edificio_id && styles.inputErr]}
-                placeholder="ID del edificio (opcional)" placeholderTextColor={T.inputPlaceholder}
                 onBlur={onBlur} onChangeText={onChange} value={value} />
             )} />
         </Field>

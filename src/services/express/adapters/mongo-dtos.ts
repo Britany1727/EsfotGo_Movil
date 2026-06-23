@@ -122,6 +122,10 @@ export interface LocationDto {
   imagen?: string;
   image_url?: string;
   imageUrl?: string;
+  imagen_360?: string;
+  image360?: string;
+  tipo_media?: string;
+  mediaType?: string;
   created_at?: string;
   createdAt?: string;
 }
@@ -133,6 +137,10 @@ export interface CreateLocationRequestDto {
   latitud: number;
   longitud: number;
   imagen?: string;
+  imagen_360?: string;
+  image360?: string;
+  tipo_media?: string;
+  mediaType?: string;
 }
 
 // ─── Restricted Zones ────────────────────────────────────────
@@ -290,27 +298,6 @@ export interface AulaDto {
   estado?: string;
   createdAt?: string;
   updatedAt?: string;
-}
-
-// ─── Edificios ───────────────────────────────────────────────
-
-export interface EdificioDto {
-  _id?: string;
-  id?: string;
-  nombre?: string;
-  name?: string;
-  descripcion?: string;
-  description?: string;
-  latitud?: number;
-  latitude?: number;
-  longitud?: number;
-  longitude?: number;
-  pisos?: number;
-  floors?: number;
-  imagen?: string;
-  image?: string;
-  created_at?: string;
-  createdAt?: string;
 }
 
 // ─── Oficinas ────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { BookOpen, MapPin, ChevronRight } from 'lucide-react-native';
@@ -13,6 +13,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 
 export default function AulasScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { data: locations, isLoading } = useCampusLocations();
 
   const aulas = useMemo(
@@ -33,6 +34,7 @@ export default function AulasScreen() {
       <GlassHeader
         scrollY={{ value: 0 } as any}
         onAvatarPress={() => router.push('/profile' as any)}
+        onMenuPress={() => (navigation as any).openDrawer()}
       />
       <View style={styles.header}>
         <Text style={styles.title}>Aulas</Text>

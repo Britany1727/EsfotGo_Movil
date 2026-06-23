@@ -77,7 +77,6 @@ export function GraphAdmin() {
         longitude: nLng,
         type: (nType as GraphNode['type']) ?? 'punto_interes',
         floor: Number(nFloor) || 1,
-        buildingId: editingNode?.buildingId ?? '',
         referenceId: editingNode?.referenceId ?? null,
         referenceModel: editingNode?.referenceModel ?? null,
       },

@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { httpClient } from '@/services/http-client';
 import { AppError, NotFoundError } from '@/core/errors/app-error';
-import type { CampusLocation } from '@/features/map/domain/location.entity';
+import type { CampusLocation, LocationMediaType } from '@/features/map/domain/location.entity';
 import type { PoiInput, PoiUpdateInput, RestrictedZone } from '@/features/admin/domain/poi.entity';
 import { isDevMode } from '@/core/config/env';
 import { MockData } from '@/core/dev/mock-services';
@@ -18,6 +18,8 @@ interface LocationDto {
   latitud?: number; latitude?: number;
   longitud?: number; longitude?: number;
   imagen?: string; image_url?: string; imageUrl?: string;
+  imagen_360?: string; image360?: string;
+  tipo_media?: string; mediaType?: string;
   created_at?: string; createdAt?: string;
 }
 
@@ -46,6 +48,9 @@ function mapDtoToLocation(dto: LocationDto): CampusLocation {
     latitude: dto.latitud ?? dto.latitude ?? 0,
     longitude: dto.longitud ?? dto.longitude ?? 0,
     imageUrl: dto.imagen ?? dto.image_url ?? dto.imageUrl ?? null,
+    image: dto.imagen ?? dto.image_url ?? dto.imageUrl ?? undefined,
+    image360: dto.imagen_360 ?? dto.image360 ?? undefined,
+    mediaType: (dto.tipo_media ?? dto.mediaType ?? undefined) as LocationMediaType,
     createdAt: dto.created_at ?? dto.createdAt ?? new Date().toISOString(),
   };
 }
@@ -113,6 +118,8 @@ export class ExpressPoiRepository {
       latitud: input.latitude,
       longitud: input.longitude,
       imagen: input.imageUrl,
+      imagen_360: input.image360,
+      tipo_media: input.mediaType,
       usuario_id: userId || undefined,
     }, t);
     if (error || !data) {
@@ -134,6 +141,8 @@ export class ExpressPoiRepository {
     if (input.latitude !== undefined) payload.latitud = input.latitude;
     if (input.longitude !== undefined) payload.longitud = input.longitude;
     if (input.imageUrl !== undefined) payload.imagen = input.imageUrl;
+    if (input.image360 !== undefined) payload.imagen_360 = input.image360;
+    if (input.mediaType !== undefined) payload.tipo_media = input.mediaType;
     if (userId) payload.usuario_id = userId;
     const { data, error } = await httpClient.put<LocationDto>(`/admin/mapa/ubicaciones/${id}`, payload, t);
     if (error || !data) {

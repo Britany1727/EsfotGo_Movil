@@ -20,7 +20,6 @@ const CATEGORY_CONFIG: Record<string, { color: string; label: string }> = {
   eventos: { color: '#F59E0B', label: 'Eventos' },
   estacionamiento: { color: '#6B7280', label: 'Estacionamiento' },
   entrada: { color: '#0EA5E9', label: 'Entrada' },
-  edificios: { color: '#D97706', label: 'Edificios' },
   aulas: { color: '#8B5CF6', label: 'Aulas' },
   otro: { color: '#9CA3AF', label: 'Otro' },
 };

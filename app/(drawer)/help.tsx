@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable, Platform, UIManager, Lin
 import Animated, { FadeInDown, useSharedValue, useAnimatedScrollHandler, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import { LightTheme as T, Sizes, Shadows, Typography } from '@/constants/design-system';
 import { GlassHeader } from '@/components/ui/GlassHeader';
 import { HelpCircle, Phone, Mail, MapPin, Clock, Globe, Wrench, Info, ChevronDown } from 'lucide-react-native';
@@ -14,7 +14,7 @@ const FAQ_ITEMS = [
   { id: '1', question: '¿Cómo encuentro un aula en el mapa?', answer: 'Ve a la pestaña "Mapa" en la barra inferior. Usa el buscador para escribir el código o nombre del aula. También puedes filtrar por categoría usando los chips de filtro.' },
   { id: '2', question: '¿Cómo consulto los horarios del Polibus?', answer: 'Dirígete a la pestaña "Polibus". Selecciona la ruta que deseas consultar y verás el recorrido en el mapa junto con las paradas.' },
   { id: '3', question: '¿Puedo inscribirme en eventos desde la app?', answer: 'Sí. En "Eventos", abre el evento de tu interés y toca "Inscribirse". Necesitas haber iniciado sesión con tu cuenta institucional.' },
-  { id: '4', question: '¿Cómo agrego lugares a Favoritos?', answer: 'Desde el Mapa, selecciona un edificio o aula y toca el ícono de estrella ⭐ en el panel de detalle.' },
+  { id: '4', question: '¿Cómo agrego lugares a Favoritos?', answer: 'Desde el Mapa, selecciona un aula o ubicación y toca el ícono de estrella ⭐ en el panel de detalle.' },
   { id: '5', question: '¿La aplicación funciona sin internet?', answer: 'Requiere conexión para el mapa, eventos y horarios. Tus favoritos y preferencias se almacenan localmente.' },
   { id: '6', question: '¿Cómo recupero mi contraseña?', answer: 'En inicio de sesión, toca "¿Olvidaste tu contraseña?". Ingresa tu correo institucional y recibirás un enlace.' },
   { id: '7', question: '¿Qué permisos necesita la aplicación?', answer: 'ESFOT Go solicita permiso de ubicación para mostrar tu posición en el mapa y calcular rutas. Es opcional pero mejora la experiencia.' },
@@ -66,6 +66,7 @@ const ContactCard = memo(function ContactCard({ Icon, label, value, onPress }: {
 
 export default function HelpScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [openFaq, setOpenFaq] = useState<string | null>(null);
   const scrollY = useSharedValue(0);
@@ -75,7 +76,7 @@ export default function HelpScreen() {
   return (
     <View style={styles.root}>
       <LinearGradient colors={[T.primary, T.primaryLight, T.background]} locations={[0, 0.18, 1]} style={styles.heroBg} />
-      <GlassHeader scrollY={scrollY} onAvatarPress={() => router.push('/profile' as any)} />
+      <GlassHeader scrollY={scrollY} onAvatarPress={() => router.push('/profile' as any)} onMenuPress={() => (navigation as any).openDrawer()} />
       <Animated.ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 80 }]} showsVerticalScrollIndicator={false} onScroll={onScroll} scrollEventThrottle={16}>
         <Animated.View entering={FadeInDown.duration(400)} style={[styles.header, { paddingTop: insets.top + 72 }]}>
           <Text style={styles.title}>Ayuda</Text>

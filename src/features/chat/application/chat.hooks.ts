@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { io, Socket } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
 import { useAuthStore } from '@/store/auth.store';
-import { env } from '@/core/config/env';
+import { conectarSocket } from '@/services/socket';
 import type { ChatMessage } from '../domain/chat.entity';
 import { ChatRepository } from '../infrastructure/chat.repository';
 import { NotificationService } from '@/core/notifications/notification.service';
@@ -21,11 +21,6 @@ export interface ChatHookResult {
   sendMessage: (text: string) => void;
   notification: string | null;
   clearNotification: () => void;
-}
-
-function getSocketUrl(): string {
-  const base = env.EXPO_PUBLIC_API_BASE_URL;
-  return base.replace(/\/api\/?$/, '');
 }
 
 export function useChat(): ChatHookResult {
@@ -61,12 +56,7 @@ export function useChat(): ChatHookResult {
       }
     };
 
-    const socketUrl = getSocketUrl();
-    const socket: Socket = io(socketUrl, {
-      autoConnect: true,
-      transports: ['websocket'],
-      forceNew: true,
-    });
+    const socket = conectarSocket();
 
     socketRef.current = socket;
 
@@ -131,7 +121,6 @@ export function useChat(): ChatHookResult {
       socket.off('usuario-conectado');
       socket.off('usuario-desconectado');
       socket.off('connect_error');
-      socket.disconnect();
       socketRef.current = null;
     };
   }, [username]);

@@ -9,7 +9,7 @@ import type { PoiInput, PoiUpdateInput } from '@/features/admin/domain/poi.entit
 import { getAllCategories } from '@/features/map/application/map.hooks';
 import * as Haptics from 'expo-haptics';
 import { LightTheme as T, Sizes, Shadows, Typography } from '@/constants/design-system';
-import { Image as ImageIcon, X } from 'lucide-react-native';
+import { Image as ImageIcon, X, Circle } from 'lucide-react-native';
 
 interface PoiFormProps {
   initialCoordinate?: { latitude: number; longitude: number };
@@ -32,6 +32,7 @@ export function PoiForm({
   const [description, setDescription] = useState(editingPoi?.description ?? '');
   const [category, setCategory] = useState(editingPoi?.category ?? 'academico');
   const [imageUri, setImageUri] = useState<string | null>(editingPoi?.imageUrl ?? null);
+  const [image360Uri, setImage360Uri] = useState<string | null>(editingPoi?.image360 ?? null);
   const categories = getAllCategories();
 
   const isEditing = !!editingPoi;
@@ -53,10 +54,35 @@ export function PoiForm({
     }
   };
 
+  const pickImage360 = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.9,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        setImage360Uri(result.assets[0].uri);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch {
+      // silently fail
+    }
+  };
+
   const removeImage = () => {
     setImageUri(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
+
+  const removeImage360 = () => {
+    setImage360Uri(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const has360 = !!image360Uri;
+  const effectiveMediaType = has360 ? '360' : imageUri ? 'image' : undefined;
 
   const handleSubmit = () => {
     if (!name.trim()) return;
@@ -82,7 +108,8 @@ export function PoiForm({
         latitude: lat || editingPoi.latitude,
         longitude: lng || editingPoi.longitude,
         imageUrl: imageUri ?? null,
-        mediaType: imageUri ? 'static' : null,
+        image360: image360Uri ?? null,
+        mediaType: effectiveMediaType,
       });
     } else {
       onSubmit({
@@ -92,7 +119,8 @@ export function PoiForm({
         latitude: lat,
         longitude: lng,
         imageUrl: imageUri ?? undefined,
-        mediaType: imageUri ? 'static' : undefined,
+        image360: image360Uri ?? undefined,
+        mediaType: effectiveMediaType,
       });
     }
   };
@@ -103,6 +131,7 @@ export function PoiForm({
       setDescription(editingPoi.description ?? '');
       setCategory(editingPoi.category);
       setImageUri(editingPoi.imageUrl ?? null);
+      setImage360Uri(editingPoi.image360 ?? null);
     }
   }, [editingPoi]);
 
@@ -162,7 +191,7 @@ export function PoiForm({
       </View>
 
       <View style={styles.field}>
-        <Text style={styles.label}>Imagen (Opcional)</Text>
+        <Text style={styles.label}>Imagen normal (Opcional)</Text>
 
         {imageUri ? (
           <View style={styles.previewContainer}>
@@ -170,7 +199,7 @@ export function PoiForm({
             <View style={styles.previewActions}>
               <Pressable style={styles.changeImageBtn} onPress={pickImage}>
                 <ImageIcon size={14} strokeWidth={2} color={T.primary} />
-                <Text style={styles.changeImageText}>Cambiar imagen</Text>
+                <Text style={styles.changeImageText}>Cambiar</Text>
               </Pressable>
               <Pressable style={styles.removeImageBtn} onPress={removeImage}>
                 <X size={14} strokeWidth={2} color={T.error} />
@@ -181,7 +210,36 @@ export function PoiForm({
         ) : (
           <Pressable style={styles.pickBtn} onPress={pickImage}>
             <ImageIcon size={18} strokeWidth={1.8} color={T.textSecondary} />
-            <Text style={styles.pickBtnText}>Seleccionar imagen</Text>
+            <Text style={styles.pickBtnText}>Seleccionar imagen normal</Text>
+          </Pressable>
+        )}
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Imagen 360° / Panorama (Opcional)</Text>
+
+        {image360Uri ? (
+          <View style={styles.previewContainer}>
+            <Image source={{ uri: image360Uri }} style={styles.preview} resizeMode="cover" />
+            <View style={styles.badge360}>
+              <Circle size={12} strokeWidth={2} color="#FFF" fill="#FFF" />
+              <Text style={styles.badge360Text}>360°</Text>
+            </View>
+            <View style={styles.previewActions}>
+              <Pressable style={styles.changeImageBtn} onPress={pickImage360}>
+                <ImageIcon size={14} strokeWidth={2} color={T.primary} />
+                <Text style={styles.changeImageText}>Cambiar</Text>
+              </Pressable>
+              <Pressable style={styles.removeImageBtn} onPress={removeImage360}>
+                <X size={14} strokeWidth={2} color={T.error} />
+                <Text style={styles.removeImageText}>Quitar</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <Pressable style={[styles.pickBtn, styles.pickBtn360]} onPress={pickImage360}>
+            <Circle size={18} strokeWidth={1.8} color={T.primary} />
+            <Text style={styles.pickBtn360Text}>Seleccionar imagen 360°</Text>
           </Pressable>
         )}
       </View>
@@ -287,4 +345,16 @@ const styles = StyleSheet.create({
   },
   saveBtnDisabled: { opacity: 0.5 },
   saveText: { ...Typography.button, color: '#FFFFFF', fontSize: 14 },
+  badge360: {
+    position: 'absolute', top: 8, right: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: T.primary, paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 10,
+  },
+  badge360Text: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  pickBtn360: {
+    borderColor: T.primary + '40',
+    backgroundColor: T.primaryMuted,
+  },
+  pickBtn360Text: { ...Typography.body, color: T.primary, fontWeight: '600' },
 });

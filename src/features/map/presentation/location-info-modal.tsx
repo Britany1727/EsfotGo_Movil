@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import Animated, { FadeIn, SlideInUp, FadeOut } from 'react-native-reanimated';
 import { X } from 'lucide-react-native';
-import { Panorama360Viewer } from './panorama-360-viewer';
+import { PannellumViewer } from './pannellum-viewer';
 import { getCategoryConfig } from '@/features/map/application/map.hooks';
 import type { CampusLocation } from '@/features/map/domain/location.entity';
 import { LightTheme as T, Sizes, Typography } from '@/constants/design-system';
@@ -41,7 +41,7 @@ export function LocationInfoModal({ location, onClose }: Props) {
     }
 
     if (is360) {
-      return <Panorama360Viewer imageSource={imageSrc} />;
+      return <PannellumViewer imageUrl={imageSrc} />;
     }
 
     return (

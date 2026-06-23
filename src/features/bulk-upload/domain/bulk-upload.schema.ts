@@ -25,7 +25,6 @@ export const PoiRowSchema = z.object({
     (v) => (v === '' || v === undefined ? undefined : parseInt(String(v), 10)),
     z.number().int().optional()
   ),
-  edificio: z.string().optional(),
 });
 
 export type UserRowInput = z.infer<typeof UserRowSchema>;

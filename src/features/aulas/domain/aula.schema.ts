@@ -20,10 +20,6 @@ export const aulaFormSchema = z.object({
     .optional()
     .or(z.literal('')),
   estado: estadoAulaSchema,
-  edificio_id: z
-    .string()
-    .optional()
-    .or(z.literal('')),
 });
 
 export type AulaFormInput = z.infer<typeof aulaFormSchema>;

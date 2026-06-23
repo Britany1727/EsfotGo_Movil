@@ -6,11 +6,10 @@ import Animated, {
   FadeInDown, useSharedValue, useAnimatedScrollHandler,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
-import { BookOpen, Map, Star, CalendarDays } from 'lucide-react-native';
+import { useNavigation, useRouter } from 'expo-router';
+import { BookOpen, Star, CalendarDays } from 'lucide-react-native';
 import { LightTheme as T, Sizes, Shadows, Typography } from '@/constants/design-system';
 import { GlassHeader } from '@/components/ui/GlassHeader';
-import { BuildingCard, type Building } from '@/components/ui/BuildingCard';
 import { RouteCard, type Route } from '@/components/ui/RouteCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useFavoritesByType, useRemoveFavorite } from '@/features/favoritos/application/favorite.hooks';
@@ -18,28 +17,13 @@ import { useFavoritesStore } from '@/store/favorites.store';
 import { useAuthStore } from '@/store/auth.store';
 import type { Favorite } from '@/features/favoritos/domain/favorite.entity';
 
-type FavTab = 'aulas' | 'edificios' | 'rutas' | 'ubicaciones';
+type FavTab = 'aulas' | 'rutas' | 'ubicaciones';
 
 const TABS: { key: FavTab; label: string; Icon: React.ComponentType<any> }[] = [
   { key: 'aulas', label: 'Aulas', Icon: BookOpen },
-  { key: 'edificios', label: 'Edificios', Icon: Map },
   { key: 'rutas', label: 'Rutas', Icon: Star },
   { key: 'ubicaciones', label: 'Ubicaciones', Icon: CalendarDays },
 ];
-
-function favoriteToBuilding(f: Favorite): Building {
-  const data = f.itemData as Record<string, unknown> ?? {};
-  return {
-    id: f.itemId,
-    name: f.itemName,
-    category: (data.category as Building['category']) ?? 'otro',
-    code: data.code as string | undefined,
-    description: data.description as string | undefined,
-    floor: data.floor as number | undefined,
-    capacity: data.capacity as number | undefined,
-    icon: data.icon as string | undefined,
-  };
-}
 
 function favoriteToRoute(f: Favorite): Route {
   const data = f.itemData as Record<string, unknown> ?? {};
@@ -57,12 +41,13 @@ function favoriteToRoute(f: Favorite): Route {
 
 export default function FavoritesScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const role = useAuthStore((s) => s.user?.role);
   const uid = useAuthStore((s) => s.user?.id);
   const canFav = role === 'administrador' || role === 'gestor' || role === 'docente' || role === 'estudiante';
 
   const [activeTab, setActiveTab] = useState<FavTab>('aulas');
-  const { aulas, edificios, rutas, ubicaciones, total, isLoading, countByType } = useFavoritesByType();
+  const { aulas, rutas, ubicaciones, total, isLoading, countByType } = useFavoritesByType();
   const removeFavorite = useRemoveFavorite();
   const allLocations = useFavoritesStore((s) => s.locations);
   const removeLocalLocation = useFavoritesStore((s) => s.removeLocation);
@@ -73,10 +58,7 @@ export default function FavoritesScreen() {
   const localRoutes = allRoutes.filter((r) => r.userId === uid);
 
   const localAulas = localLocations.filter((l) => l.category === 'aulas');
-  const localEdificios = localLocations.filter((l) => l.category === 'edificios');
-  const localUbicaciones = localLocations.filter(
-    (l) => l.category !== 'aulas' && l.category !== 'edificios'
-  );
+  const localUbicaciones = localLocations.filter((l) => l.category !== 'aulas');
 
   const scrollY = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((e) => {
@@ -95,7 +77,6 @@ export default function FavoritesScreen() {
     }
     const localTargets =
       tab === 'aulas' ? localAulas :
-      tab === 'edificios' ? localEdificios :
       tab === 'ubicaciones' ? localUbicaciones : [];
     const isLocal = localTargets.some((f) => f.id === id);
     if (isLocal) {
@@ -104,12 +85,11 @@ export default function FavoritesScreen() {
     }
     const items =
       tab === 'aulas' ? aulas :
-      tab === 'edificios' ? edificios :
       tab === 'rutas' ? rutas : ubicaciones;
     const fav = items.find((f) => f.itemId === id);
     if (!fav) return;
     removeFavorite.mutate(fav.id);
-  }, [aulas, edificios, rutas, ubicaciones, removeFavorite, localAulas, localEdificios, localUbicaciones, localRoutes, removeLocalLocation, removeLocalRoute]);
+  }, [aulas, rutas, ubicaciones, removeFavorite, localAulas, localUbicaciones, localRoutes, removeLocalLocation, removeLocalRoute]);
 
   const renderContent = () => {
     if (isLoading) {
@@ -162,46 +142,18 @@ export default function FavoritesScreen() {
       );
     }
 
-    const normalizeCategory = (cat: string): Building['category'] => {
-      if (cat === 'edificios') return 'edificio';
-      if (cat === 'aulas') return 'aula';
-      if (cat === 'laboratorios') return 'laboratorio';
-      if (cat === 'oficinas') return 'oficina';
-      return 'otro';
-    };
-
-    const localToBuilding = (loc: typeof localLocations[number]): Building => ({
-      id: loc.id,
-      name: loc.name,
-      category: normalizeCategory(loc.category),
-      description: loc.description ?? '',
-      code: '',
-    });
-
     const items =
       activeTab === 'aulas'
-        ? [
-            ...aulas.map(favoriteToBuilding),
-            ...localAulas.map(localToBuilding),
-          ]
-        : activeTab === 'edificios'
-        ? [
-            ...edificios.map(favoriteToBuilding),
-            ...localEdificios.map(localToBuilding),
-          ]
+        ? aulas
         : activeTab === 'ubicaciones'
-        ? [
-            ...ubicaciones.map(favoriteToBuilding),
-            ...localUbicaciones.map(localToBuilding),
-          ]
-        : ubicaciones.map(favoriteToBuilding);
+        ? ubicaciones
+        : [];
 
     if (items.length === 0) {
-      const config: Record<FavTab, { Icon: React.ComponentType<any>; title: string; subtitle: string; action: string }> = {
-        aulas: { Icon: BookOpen, title: 'Sin aulas favoritas', subtitle: 'Agrega aulas desde el Mapa', action: 'Ir al Mapa' },
-        edificios: { Icon: Map, title: 'Sin edificios favoritos', subtitle: 'Explora el campus en el Mapa', action: 'Explorar' },
-        rutas: { Icon: Star, title: 'Sin rutas', subtitle: '', action: '' },
-        ubicaciones: { Icon: CalendarDays, title: 'Sin ubicaciones', subtitle: 'Guarda lugares frecuentes desde el Mapa', action: 'Ir al Mapa' },
+      const config: Record<FavTab, { Icon: React.ComponentType<any>; title: string; subtitle: string }> = {
+        aulas: { Icon: BookOpen, title: 'Sin aulas favoritas', subtitle: 'Agrega aulas desde el Mapa' },
+        rutas: { Icon: Star, title: 'Sin rutas', subtitle: '' },
+        ubicaciones: { Icon: CalendarDays, title: 'Sin ubicaciones', subtitle: 'Guarda lugares frecuentes desde el Mapa' },
       };
       const c = config[activeTab];
       return (
@@ -209,7 +161,7 @@ export default function FavoritesScreen() {
           icon={<c.Icon size={36} strokeWidth={1.5} color={T.textTertiary} />}
           title={c.title}
           subtitle={c.subtitle}
-          actionLabel={c.action}
+          actionLabel="Ir al Mapa"
           onAction={() => router.push('/map' as any)}
           delay={100}
         />
@@ -219,14 +171,12 @@ export default function FavoritesScreen() {
     return (
       <Animated.View entering={FadeInDown.duration(400)} style={styles.list}>
         {items.map((item, i) => (
-          <BuildingCard
-            key={item.id}
-            building={item as Building}
-            onPress={() => router.push('/map' as any)}
-            onMapPress={() => router.push('/map' as any)}
-            onFavoritePress={() => handleRemoveFavorite(activeTab, item.id)}
-            animationDelay={i * 60}
-          />
+          <View key={item.id} style={styles.favItem}>
+            <Text style={styles.favItemName}>{item.itemName}</Text>
+            <Pressable onPress={() => handleRemoveFavorite(activeTab, item.itemId)}>
+              <Text style={styles.removeText}>Eliminar</Text>
+            </Pressable>
+          </View>
         ))}
       </Animated.View>
     );
@@ -237,6 +187,7 @@ export default function FavoritesScreen() {
       <GlassHeader
         scrollY={scrollY}
         onAvatarPress={() => router.push('/profile' as any)}
+        onMenuPress={() => (navigation as any).openDrawer()}
       />
 
       {!canFav ? (
@@ -264,7 +215,7 @@ export default function FavoritesScreen() {
             </View>
           </View>
           <Text style={styles.subtitle}>
-            Tus aulas, edificios y rutas guardadas
+            Tus aulas, rutas y ubicaciones guardadas
           </Text>
         </Animated.View>
 
@@ -279,7 +230,6 @@ export default function FavoritesScreen() {
               const apiCount = countByType[tab.key];
               const localCount =
                 tab.key === 'aulas' ? localAulas.length :
-                tab.key === 'edificios' ? localEdificios.length :
                 tab.key === 'rutas' ? localRoutes.length :
                 tab.key === 'ubicaciones' ? localUbicaciones.length : 0;
               const count = apiCount + localCount;
@@ -410,5 +360,28 @@ const styles = StyleSheet.create({
     color: T.textTertiary,
     textAlign: 'center',
     maxWidth: 260,
+  },
+  favItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: T.surfaceGlass,
+    borderRadius: Sizes.radiusMd,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: T.cardBorder,
+  },
+  favItemName: {
+    ...Typography.body,
+    color: T.textPrimary,
+    fontWeight: '600',
+    flex: 1,
+  },
+  removeText: {
+    ...Typography.caption,
+    color: T.error ?? '#E53E3E',
+    fontWeight: '700',
   },
 });

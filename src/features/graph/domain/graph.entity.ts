@@ -13,7 +13,6 @@ export interface GraphNode {
   longitude: number;
   type: NodeType;
   floor: number;
-  buildingId: string;
   referenceId: string | null;
   referenceModel: 'Aula' | 'Oficina' | 'Evento' | null;
 }

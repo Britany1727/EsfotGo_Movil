@@ -9,7 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { FlashList } from '@shopify/flash-list';
 import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Search, X, CalendarDays } from 'lucide-react-native';
 import { useInfiniteEvents } from '@/features/events/application/event.hooks';
@@ -37,6 +37,7 @@ const DATE_FILTERS: Category[] = [
 
 export default function EventsScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
   const canCreate = user && hasPermission(user.role, 'create:events');
@@ -97,6 +98,7 @@ export default function EventsScreen() {
       <GlassHeader
         scrollY={scrollY}
         onAvatarPress={() => router.push('/profile' as any)}
+        onMenuPress={() => (navigation.getParent() as any)?.openDrawer()}
       />
 
       <FlashList

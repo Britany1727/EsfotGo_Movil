@@ -15,7 +15,7 @@ interface GlassHeaderProps {
   onMenuPress?: () => void;
 }
 
-const HEADER_HEIGHT = 64;
+const HEADER_HEIGHT = 80;
 
 export function GlassHeader({
   scrollY,
@@ -74,7 +74,7 @@ const styles = StyleSheet.create({
     ...Shadows.sm,
   },
   iconBtn: {
-    width: 40, height: 40,
+    width: 60, height: 60,
     justifyContent: 'center', alignItems: 'center',
   },
   brand: {
