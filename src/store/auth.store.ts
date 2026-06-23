@@ -239,8 +239,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true });
     try {
       const updated = await authService.updateProfile.execute(currentUser.id, input);
-      set({ user: updated });
-      SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(updated)).catch(() => {});
+      const patched = { ...updated, role: updated.role ?? currentUser.role };
+      set({ user: patched });
+      SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(patched)).catch(() => {});
     } finally {
       set({ isLoading: false });
     }

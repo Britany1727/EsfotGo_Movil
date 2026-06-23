@@ -512,3 +512,82 @@ Se agregó un planificador de ruta manual que permite tocar en el mapa para eleg
 4. **Intercambiar**: botón para invertir origen ↔ destino
 5. **Usar GPS**: botón "Usar mi ubicación como origen" para quien está fuera del campus
 6. **Iniciar ruta**: cierra el panel y muestra la tarjeta de ruta con distancia/tiempo estimado
+
+---
+
+## 14. Ruta directa / marcadores como fallback cuando el grafo está vacío
+
+### Problema
+Cuando el backend devuelve 0 nodos en el grafo, el `computeRoute` no dibujaba ninguna ruta porque el flujo A* no encontraba nodos. La app se quedaba sin ruta incluso teniendo marcadores del campus disponibles.
+
+### Solución
+Se agregaron dos fallbacks progresivos antes de la línea directa:
+1. **`buildCampusRoute`**: usa los marcadores del campus (location markers) como nodos virtuales para trazar una ruta punto a punto
+2. **`directRoute`**: línea recta entre origen y destino como último recurso
+
+### Archivos modificados
+
+#### `app/(drawer)/(tabs)/map.tsx`
+- Nueva función `directRoute(originPt, destPt)`: retorna `GraphRouteResult` con línea recta y distancia haversine
+- Nueva función `buildCampusRoute(origin, dest, markers)`: busca marcadores cercanos (radio 500m) a origen/destino, los usa como waypoints intermedios
+- `computeRoute` ahora tiene 3 caminos:
+  1. Si grafo vacío → `buildCampusRoute` → `directRoute`
+  2. Si nodos encontrados → A* + `graphRouteToWaypoints`
+  3. Si A* no encuentra ruta → `directRoute` entre nodos
+- Agregado `clustersRef = useRef(clusters)` para que `computeRoute` acceda a los clusters actuales sin depender de ellos en las dependencias del `useCallback`
+
+---
+
+## 15. Tutorías — Corrección de creación y actualización (estado + createdBy)
+
+### Problema
+1. `createdBy` se enviaba vacío (`''`) porque el hook no inyectaba el `user.id`
+2. `estado: 'programada'` en el payload causaba error 500 del backend (enum desconocido)
+3. Sin `error handling` (Alert.alert) en las mutaciones, los errores pasaban desapercibidos
+
+### Solución
+- `createdBy` se inyecta desde `useAuthStore` en el `mutationFn`
+- `estado` se eliminó de los DTOs de create y update — el backend usa su valor por defecto
+- Se agregó `normalizeStatus()` para mapear cualquier valor del backend al enum del frontend
+- Se agregó `Alert.alert` en `handleCreate`, `handleUpdate` y `handleDelete`
+
+### Archivos modificados
+
+#### `src/features/tutorias/infrastructure/express-tutoria.repository.ts`
+- `STATUS_MAP` con variantes `'programada'/'pendiente'/'finalizada'/'cancelada'`, inglés y capitalizaciones
+- `normalizeStatus(raw)`: retorna `TutoriaStatus` desde el map, default `'programada'`
+- `mapTutoriaToBackendDto`: eliminado `estado` del DTO
+- `mapTutoriaUpdateToBackendDto`: eliminado `estado` del DTO (causaba 500)
+
+#### `src/features/tutorias/application/tutorias.hooks.ts`
+- `createTutoria.mutationFn`: inyecta `createdBy: user?.id ?? ''`
+- Todos los `onError` ahora solo hacen console.log (el error handling está en la UI)
+
+#### `app/(drawer)/tutorias.tsx`
+- `handleCreate`: envuelto en try/catch con `Alert.alert`
+- `handleUpdate`: envuelto en try/catch con `Alert.alert`
+- `handleDelete`: envuelto en try/catch con `Alert.alert`
+
+---
+
+## 16. Perfil — Actualización con endpoint según rol (estudiante/docente/admin)
+
+### Problema
+El endpoint `PUT /actualizarperfil/${userId}` estaba hardcodeado a la colección de estudiantes. Cuando un docente o administrador intentaba actualizar su perfil, el backend no encontraba el usuario (porque está en otra colección).
+
+### Solución
+Se lee el `role` del usuario persistido en SecureStore y se selecciona el endpoint correcto:
+- `estudiante` → `/actualizarperfil/${userId}`
+- `docente` → `/docente/actualizarperfil/${userId}`
+- `administrador` → `/admin/actualizarperfil/${userId}`
+
+Además, ahora se persiste el usuario actualizado en SecureStore después de un update exitoso.
+
+### Archivos modificados
+
+#### `src/features/auth/infrastructure/express-auth.repository.ts`
+- `updateProfile()`: lee `esfotgo_jwt_user` de SecureStore, extrae `role`, construye endpoint según el rol
+- Role-specific endpoints: `/docente/actualizarperfil/:id`, `/admin/actualizarperfil/:id`, `/actualizarperfil/:id`
+
+#### `src/store/auth.store.ts`
+- `updateProfile()`: después de `set({ user: updated })`, persiste `SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(updated))`
