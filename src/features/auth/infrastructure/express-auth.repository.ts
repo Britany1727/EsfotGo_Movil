@@ -173,7 +173,14 @@ export class ExpressAuthRepository implements IAuthRepository {
 
   async updateProfile(userId: string, input: UpdateProfileInput): Promise<User> {
     const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
-    console.log('[ExpressRepo] updateProfile:', userId);
+    const userJson = await SecureStore.getItemAsync(AUTH_USER_KEY);
+    let role = 'estudiante';
+    if (userJson) { try { const p = JSON.parse(userJson); role = p.role ?? 'estudiante'; } catch {} }
+    // Role-specific endpoints — backend stores estudiantes/docentes in separate collections
+    const ep = role === 'docente' ? `/docente/actualizarperfil/${userId}`
+      : role === 'administrador' ? `/admin/actualizarperfil/${userId}`
+      : `/actualizarperfil/${userId}`;
+    console.log('[ExpressRepo] updateProfile:', userId, 'role:', role, 'endpoint:', ep);
     const payload: Record<string, unknown> = {};
     if (input.fullName) {
       const parts = input.fullName.trim().split(/\s+/);
@@ -181,7 +188,7 @@ export class ExpressAuthRepository implements IAuthRepository {
       payload.apellido = parts.slice(1).join(' ') || '';
     }
     if (input.phone) payload.telefono = input.phone;
-    const { data, error } = await httpClient.put<ProfileResponse>(`/actualizarperfil/${userId}`, payload, token);
+    const { data, error } = await httpClient.put<ProfileResponse>(ep, payload, token);
     if (error || !data) {
       console.log('[ExpressRepo] updateProfile error:', error);
       throw new AuthError(error ?? 'Error al actualizar perfil');

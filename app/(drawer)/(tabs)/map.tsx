@@ -109,8 +109,6 @@ export default function MapScreen() {
     }
   }, [userLocation]);
 
-  if (graphError) console.log('[MapScreen] Error cargando grafo:', (graphError as Error)?.message ?? graphError);
-
   function directRoute(originPt: GeoCoordinate, destPt: GeoCoordinate): GraphRouteResult {
     const d = Math.round(haversineMeters(originPt.latitude, originPt.longitude, destPt.latitude, destPt.longitude));
     return { waypoints: [originPt, destPt], distance: d, etaMinutes: Math.round(d / 83.33), nodeCount: 2 };

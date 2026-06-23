@@ -240,6 +240,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const updated = await authService.updateProfile.execute(currentUser.id, input);
       set({ user: updated });
+      SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(updated)).catch(() => {});
     } finally {
       set({ isLoading: false });
     }
