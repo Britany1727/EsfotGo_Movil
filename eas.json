@@ -7,7 +7,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_DEV_MODE": "true"
+        "EXPO_PUBLIC_API_BASE_URL": "https://adventurous-rebirth-production-43d4.up.railway.app/api"
       }
     },
     "preview": {
@@ -22,9 +22,6 @@
     "production": {
       "android": {
         "buildType": "app-bundle"
-      },
-      "ios": {
-        "buildType": "app-store"
       },
       "env": {
         "EXPO_PUBLIC_DEV_MODE": "false"

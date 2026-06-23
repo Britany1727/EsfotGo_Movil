@@ -591,3 +591,19 @@ Además, ahora se persiste el usuario actualizado en SecureStore después de un 
 
 #### `src/store/auth.store.ts`
 - `updateProfile()`: después de `set({ user: updated })`, persiste `SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(updated))`
+
+---
+
+## 17. Perfil — Preservar rol del usuario cuando el backend no lo retorna
+
+### Problema
+Los endpoints de actualizar perfil (`/admin/actualizarperfil/:id`, `/docente/actualizarperfil/:id`) no retornan el campo `rol` en su respuesta. Al mapear con `mapUserDtoToUser`, `normalizeRole(undefined)` devuelve `'estudiante'`, por lo que un administrador (o docente) que actualiza su perfil aparece como estudiante en el frontend.
+
+### Solución
+En el store `auth.store.ts`, se preserva el rol del usuario actual si el backend no retorna `rol` en el update.
+
+### Archivos modificados
+
+#### `src/store/auth.store.ts`
+- `updateProfile()`: ahora hace `const patched = { ...updated, role: updated.role ?? currentUser.role }` antes de actualizar el estado y el SecureStore
+- El `SecureStore` también guarda el usuario con el rol corregido
