@@ -36,6 +36,7 @@ import type {
 import { useAuthStore } from '@/store/auth.store';
 import { useRouter } from 'expo-router';
 import { AppError } from '@/core/errors/app-error';
+import Toast from 'react-native-toast-message';
 import * as Haptics from 'expo-haptics';
 import { LightTheme as T, Sizes, Shadows, Typography } from '@/constants/design-system';
 import { Check } from 'lucide-react-native';
@@ -66,7 +67,6 @@ const TOTAL_STEPS = 3;
 export function RegistrationForm() {
   const router = useRouter();
   const signUp = useAuthStore((s) => s.signUp);
-  const setRegistrationEmail = useAuthStore((s) => s.setRegistrationEmail);
   const isLoading = useAuthStore((s) => s.isLoading);
 
   const [step, setStep] = useState<Step>(1);
@@ -221,8 +221,8 @@ export function RegistrationForm() {
                   telefono: data.telefono,
                   acceptTerms: true,
                 }, selectedRole);
-                setRegistrationEmail(emailValue);
-                router.replace('/auth/verify');
+                Toast.show({ type: 'success', text1: 'Registro exitoso', text2: 'Te has registrado exitosamente' });
+                setTimeout(() => router.replace('/auth/login'), 1500);
               } catch (error) {
                 if (error instanceof AppError) {
                   setServerError(error.toUserMessage());

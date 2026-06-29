@@ -41,7 +41,7 @@ export function useTutorias() {
 
   const createTutoria = useMutation({
     mutationFn: (input: Omit<Tutoria, 'id' | 'createdAt' | 'updatedAt' | 'enrolledCount'>) =>
-      repository.create({ ...input, createdBy: user?.id ?? '' }),
+      repository.create({ ...input, createdBy: user?.id ?? '', docente: user?.id ?? '' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tutorias'] }),
     onError: (err) => { console.log('[TutoriasHook] Error creando tutoría:', err); },
   });
@@ -68,6 +68,8 @@ export function useTutorias() {
   return {
     tutorias: filtered,
     isLoading: query.isLoading,
+    refetch: query.refetch,
+    isRefetching: query.isRefetching,
     search, setSearch,
     statusFilter, setStatusFilter,
     ownerFilter, setOwnerFilter,
@@ -95,22 +97,24 @@ export function useTutoriaEnrollment(tutoriaId: string) {
   const enroll = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error('No autenticado');
-      await repository.enroll(tutoriaId, user.id);
+      await repository.enroll(tutoriaId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tutoria-enrollments', tutoriaId] });
       queryClient.invalidateQueries({ queryKey: ['tutorias'] });
+      queryClient.invalidateQueries({ queryKey: ['student-enrollments'] });
     },
   });
 
   const unenroll = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error('No autenticado');
-      await repository.unenroll(tutoriaId, user.id);
+      await repository.unenroll(tutoriaId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tutoria-enrollments', tutoriaId] });
       queryClient.invalidateQueries({ queryKey: ['tutorias'] });
+      queryClient.invalidateQueries({ queryKey: ['student-enrollments'] });
     },
   });
 
@@ -119,5 +123,64 @@ export function useTutoriaEnrollment(tutoriaId: string) {
     isLoading: enrollmentQuery.isLoading,
     enroll,
     unenroll,
+  };
+}
+
+export function useStudentEnrollments() {
+  const user = useAuthStore((s) => s.user);
+
+  const query = useQuery({
+    queryKey: ['student-enrollments', user?.id],
+    queryFn: () => repository.getStudentEnrollments(),
+    enabled: !!user,
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 10,
+  });
+
+  return {
+    enrollments: query.data ?? [],
+    isLoading: query.isLoading,
+    refetch: query.refetch,
+    isRefetching: query.isRefetching,
+  };
+}
+
+export function useTeacherEnrollments() {
+  const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+
+  const query = useQuery({
+    queryKey: ['teacher-enrollments', user?.id],
+    queryFn: () => repository.getTeacherEnrollments(),
+    enabled: !!user && user.role === 'docente',
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 10,
+  });
+
+  const acceptEnrollment = useMutation({
+    mutationFn: ({ tutoriaId, inscripcionId }: { tutoriaId: string; inscripcionId: string }) =>
+      repository.acceptEnrollment(tutoriaId, inscripcionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teacher-enrollments'] });
+      queryClient.invalidateQueries({ queryKey: ['tutorias'] });
+    },
+  });
+
+  const rejectEnrollment = useMutation({
+    mutationFn: ({ tutoriaId, inscripcionId }: { tutoriaId: string; inscripcionId: string }) =>
+      repository.rejectEnrollment(tutoriaId, inscripcionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teacher-enrollments'] });
+      queryClient.invalidateQueries({ queryKey: ['tutorias'] });
+    },
+  });
+
+  return {
+    enrollments: query.data ?? [],
+    isLoading: query.isLoading,
+    refetch: query.refetch,
+    isRefetching: query.isRefetching,
+    acceptEnrollment,
+    rejectEnrollment,
   };
 }

@@ -1,21 +1,21 @@
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
-  View, Text, TextInput as RNInput, Pressable, StyleSheet, ActivityIndicator, ScrollView, Platform,
+  View, Text, TextInput as RNInput, Pressable, StyleSheet, ActivityIndicator, ScrollView, Platform, Modal, FlatList,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { z } from 'zod';
 import { useState } from 'react';
 import * as Haptics from 'expo-haptics';
-import { X, Calendar } from 'lucide-react-native';
+import { X, Calendar, User } from 'lucide-react-native';
 import type { Tutoria, Horario, TutoriaStatus } from '../domain/tutoria.entity';
 import { LightTheme as T, Sizes, Shadows, Typography } from '@/constants/design-system';
+import { useAuthStore } from '@/store/auth.store';
 
 const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
 
 const tutoriaSchema = z.object({
   title: z.string().min(3, 'Mínimo 3 caracteres').max(100, 'Máximo 100 caracteres'),
-  subject: z.string().min(2, 'Mínimo 2 caracteres').max(60, 'Máximo 60 caracteres'),
   description: z.string().max(500).optional().or(z.literal('')),
   date: z.string().min(1, 'Fecha requerida'),
   duration: z.string().min(1, 'Duración requerida'),
@@ -59,19 +59,40 @@ function parseISOToDate(isoStr: string): Date {
   return new Date(y, m - 1, d);
 }
 
+function timeStrToDate(time: string): Date {
+  const [h, m] = time.split(':').map(Number);
+  const d = new Date();
+  d.setHours(h ?? 0, m ?? 0, 0, 0);
+  return d;
+}
+
+function dateToTimeStr(date: Date): string {
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
 export function TutoriaForm({ editData, onSubmit, isLoading }: TutoriaFormProps) {
+  const userName = useAuthStore((s) => s.user?.fullName);
+  const docenteName = userName || '';
+  const [timePickerTarget, setTimePickerTarget] = useState<{ index: number; field: 'horaInicio' | 'horaFin' } | null>(null);
   const [horarios, setHorarios] = useState<Horario[]>(
     editData?.horarios && editData.horarios.length > 0
       ? editData.horarios.map((h) => ({ ...h }))
       : [emptyHorario()]
   );
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [locationCustom, setLocationCustom] = useState(false);
+  const LOCATIONS = [
+    'Laboratorio de Cómputo 1', 'Laboratorio de Cómputo 2', 'Aula Magna',
+    'Sala de Estudio Grupal', 'Laboratorio de Redes', 'Laboratorio de IoT',
+    'Secretaría ESFOT', 'Coordinación Académica', 'Bienestar Estudiantil',
+    'Departamento de TI', 'Vinculación con la Sociedad',
+  ];
 
   const { control, handleSubmit, formState: { errors } } = useForm<TutoriaFormInput>({
     resolver: zodResolver(tutoriaSchema),
     defaultValues: {
       title: editData?.title ?? '',
-      subject: editData?.subject ?? '',
       description: editData?.description ?? '',
       date: editData?.date ?? '',
       duration: String(editData?.duration ?? 60),
@@ -101,7 +122,8 @@ export function TutoriaForm({ editData, onSubmit, isLoading }: TutoriaFormProps)
       : '';
     await onSubmit({
       title: data.title,
-      subject: data.subject,
+      subject: '',
+      docente: editData?.docente,
       description: data.description || undefined,
       date: data.date,
       time: timeStr,
@@ -122,10 +144,11 @@ export function TutoriaForm({ editData, onSubmit, isLoading }: TutoriaFormProps)
             <RNInput style={[s.input, errors.title && s.inputErr]} placeholder="Ej: Cálculo Diferencial" placeholderTextColor={T.inputPlaceholder} onBlur={onBlur} onChangeText={onChange} value={value} />
           )} />
         </Field>
-        <Field label="Materia *" error={errors.subject?.message}>
-          <Controller control={control} name="subject" render={({ field: { onChange, onBlur, value } }) => (
-            <RNInput style={[s.input, errors.subject && s.inputErr]} placeholder="Ej: Matemáticas" placeholderTextColor={T.inputPlaceholder} onBlur={onBlur} onChangeText={onChange} value={value} />
-          )} />
+        <Field label="Docente">
+          <View style={s.docenteField}>
+            <User size={16} color={T.textSecondary} />
+            <Text style={s.docenteName}>{docenteName || 'Docente'}</Text>
+          </View>
         </Field>
         <Field label="Descripción" error={errors.description?.message}>
           <Controller control={control} name="description" render={({ field: { onChange, onBlur, value } }) => (
@@ -177,8 +200,48 @@ export function TutoriaForm({ editData, onSubmit, isLoading }: TutoriaFormProps)
           )} />
         </Field>
         <Field label="Ubicación" error={errors.location?.message}>
-          <Controller control={control} name="location" render={({ field: { onChange, onBlur, value } }) => (
-            <RNInput style={[s.input, errors.location && s.inputErr]} placeholder="Ej: Aula 101" placeholderTextColor={T.inputPlaceholder} onBlur={onBlur} onChangeText={onChange} value={value} />
+          <Controller control={control} name="location" render={({ field: { onChange, value } }) => (
+            <>
+              {!locationCustom ? (
+                <Pressable
+                  style={[s.input, s.locationBtn, errors.location && s.inputErr]}
+                  onPress={() => { setLocationCustom(false); setShowLocationPicker(true); }}
+                >
+                  <Text style={[s.locationBtnText, !value && s.locationPlaceholder]}>
+                    {value || 'Seleccionar ubicación'}
+                  </Text>
+                </Pressable>
+              ) : (
+                <RNInput
+                  style={[s.input, errors.location && s.inputErr]}
+                  placeholder="Ej: Aula 101" placeholderTextColor={T.inputPlaceholder}
+                  value={value} onChangeText={onChange}
+                  autoFocus
+                />
+              )}
+              <Modal visible={showLocationPicker} transparent animationType="slide" onRequestClose={() => setShowLocationPicker(false)}>
+                <Pressable style={s.modalOverlay} onPress={() => { setShowLocationPicker(false); setLocationCustom(false); }}>
+                  <Pressable style={s.locationModal} onPress={() => {}}>
+                    <Text style={s.locationModalTitle}>Seleccionar ubicación</Text>
+                    <FlatList
+                      data={LOCATIONS}
+                      keyExtractor={(item) => item}
+                      renderItem={({ item }) => (
+                        <Pressable
+                          style={[s.locationItem, value === item && s.locationItemActive]}
+                          onPress={() => { onChange(item); setShowLocationPicker(false); setLocationCustom(false); }}
+                        >
+                          <Text style={[s.locationItemText, value === item && s.locationItemTextActive]}>{item}</Text>
+                        </Pressable>
+                      )}
+                    />
+                    <Pressable style={s.locationCustom} onPress={() => { setShowLocationPicker(false); setLocationCustom(true); }}>
+                      <Text style={s.locationCustomText}>+ Ingresar otra ubicación</Text>
+                    </Pressable>
+                  </Pressable>
+                </Pressable>
+              </Modal>
+            </>
           )} />
         </Field>
 
@@ -200,19 +263,38 @@ export function TutoriaForm({ editData, onSubmit, isLoading }: TutoriaFormProps)
                 ))}
               </View>
               <View style={s.timeRow}>
-                <RNInput
-                  style={[s.timeInput]}
-                  placeholder="Inicio" placeholderTextColor={T.inputPlaceholder}
-                  value={horario.horaInicio}
-                  onChangeText={(v) => handleHorarioChange(index, 'horaInicio', v)}
-                />
+                <Pressable
+                  style={[s.timeInput, horario.horaInicio ? s.timeInputSet : null]}
+                  onPress={() => setTimePickerTarget({ index, field: 'horaInicio' })}
+                >
+                  <Text style={[s.timeInputText, !horario.horaInicio && s.timeInputPlaceholder]}>
+                    {horario.horaInicio || 'Inicio'}
+                  </Text>
+                </Pressable>
                 <Text style={s.timeSep}>a</Text>
-                <RNInput
-                  style={[s.timeInput]}
-                  placeholder="Fin" placeholderTextColor={T.inputPlaceholder}
-                  value={horario.horaFin}
-                  onChangeText={(v) => handleHorarioChange(index, 'horaFin', v)}
-                />
+                <Pressable
+                  style={[s.timeInput, horario.horaFin ? s.timeInputSet : null]}
+                  onPress={() => setTimePickerTarget({ index, field: 'horaFin' })}
+                >
+                  <Text style={[s.timeInputText, !horario.horaFin && s.timeInputPlaceholder]}>
+                    {horario.horaFin || 'Fin'}
+                  </Text>
+                </Pressable>
+                {timePickerTarget?.index === index && timePickerTarget?.field && (
+                  <DateTimePicker
+                    value={timeStrToDate(horario[timePickerTarget.field] || '08:00')}
+                    mode="time"
+                    is24Hour
+                    display={Platform.OS === 'ios' ? 'compact' : 'default'}
+                    onChange={(_evt, selectedDate) => {
+                      if (Platform.OS !== 'ios') setTimePickerTarget(null);
+                      if (selectedDate) {
+                        handleHorarioChange(index, timePickerTarget.field, dateToTimeStr(selectedDate));
+                        if (Platform.OS === 'ios') setTimePickerTarget(null);
+                      }
+                    }}
+                  />
+                )}
               </View>
               {horarios.length > 1 && (
                 <Pressable style={s.removeBtn} onPress={() => eliminarHorario(index)}>
@@ -291,9 +373,11 @@ const s = StyleSheet.create({
   timeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   timeInput: {
     flex: 1, backgroundColor: T.inputBg, borderWidth: 1.5, borderColor: T.inputBorder,
-    borderRadius: Sizes.radiusSm, padding: 10,
-    fontSize: 14, color: T.inputText, textAlign: 'center',
+    borderRadius: Sizes.radiusSm, padding: 10, alignItems: 'center',
   },
+  timeInputSet: { borderColor: T.primary, backgroundColor: T.primaryMuted },
+  timeInputText: { fontSize: 14, color: T.inputText, textAlign: 'center' },
+  timeInputPlaceholder: { color: T.inputPlaceholder },
   timeSep: { ...Typography.bodySm, color: T.textSecondary },
   removeBtn: {
     alignSelf: 'flex-end', width: 28, height: 28, borderRadius: 14,
@@ -304,4 +388,41 @@ const s = StyleSheet.create({
     borderRadius: 8, borderWidth: 1, borderColor: T.primary, borderStyle: 'dashed',
   },
   addBtnText: { ...Typography.caption, fontWeight: '600', color: T.primary },
+  docenteField: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: T.surfaceGlass, borderRadius: Sizes.radiusSm,
+    padding: 14, borderWidth: 1, borderColor: T.cardBorder,
+  },
+  docenteName: { ...Typography.body, color: T.textPrimary, flex: 1 },
+
+  locationBtn: { justifyContent: 'center' },
+  locationBtnText: { fontSize: 15, color: T.inputText },
+  locationPlaceholder: { color: T.inputPlaceholder },
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  locationModal: {
+    backgroundColor: T.background,
+    borderTopLeftRadius: Sizes.radiusXl,
+    borderTopRightRadius: Sizes.radiusXl,
+    maxHeight: '70%', paddingBottom: 40,
+  },
+  locationModalTitle: {
+    ...Typography.h4, color: T.textPrimary,
+    paddingHorizontal: Sizes.paddingMd, paddingTop: 20, paddingBottom: 12,
+    borderBottomWidth: 1, borderBottomColor: T.divider,
+  },
+  locationItem: {
+    paddingHorizontal: Sizes.paddingMd, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: T.divider,
+  },
+  locationItemActive: { backgroundColor: T.primaryMuted },
+  locationItemText: { fontSize: 15, color: T.textPrimary },
+  locationItemTextActive: { color: T.primary, fontWeight: '600' },
+  locationCustom: {
+    paddingHorizontal: Sizes.paddingMd, paddingVertical: 14,
+    marginTop: 4,
+  },
+  locationCustomText: { fontSize: 14, color: T.primary, fontWeight: '600' },
 });

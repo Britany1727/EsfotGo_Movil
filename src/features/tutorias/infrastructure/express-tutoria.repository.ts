@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { httpClient } from '@/services/http-client';
 import { AppError } from '@/core/errors/app-error';
-import type { Tutoria, TutoriaEnrollment, TutoriaStatus } from '../domain/tutoria.entity';
+import type { Tutoria, TutoriaEnrollment, TutoriaStatus, Inscripcion, EnrollmentStatus } from '../domain/tutoria.entity';
 // note: TutoriaStatus used in STATUS_MAP and normalizeStatus
 import { isDevMode } from '@/core/config/env';
 
@@ -24,6 +24,33 @@ interface TutoriaResponseDto {
   estado?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+// ─── DTOs para inscripciones ───
+
+interface InscripcionTutoriaDto {
+  _id: string;
+  titulo: string;
+  horarios: { dia: string; horaInicio: string; horaFin: string }[];
+  informacion: string;
+  oficina: string;
+  docente?: { nombre: string; apellido: string; email: string; telefono: string; imagen: string };
+}
+
+interface InscripcionEstudianteDto {
+  nombre: string;
+  apellido: string;
+  email: string;
+  telefono: string;
+  imagen: string;
+}
+
+interface InscripcionResponseDto {
+  _id: string;
+  tutoria_id: InscripcionTutoriaDto | string;
+  estudiante_id: InscripcionEstudianteDto | string;
+  estado: string;
+  created_at: string;
 }
 
 // ─── Mappers ────────────────────────────────────────────────
@@ -49,7 +76,8 @@ function mapDtoToTutoria(dto: TutoriaResponseDto): Tutoria {
   return {
     id: dto._id,
     title: dto.titulo ?? dto.informacion?.slice(0, 50) ?? '',
-    subject: dto.docente ?? '',
+    subject: '',
+    docente: dto.docente ?? undefined,
     description: dto.informacion ?? undefined,
     date: dto.fecha ?? new Date().toISOString().slice(0, 10),
     time: firstHorario ? `${firstHorario.horaInicio} - ${firstHorario.horaFin}` : '',
@@ -65,9 +93,29 @@ function mapDtoToTutoria(dto: TutoriaResponseDto): Tutoria {
   };
 }
 
+function mapInscripcionDto(dto: InscripcionResponseDto): Inscripcion {
+  return {
+    _id: dto._id,
+    tutoria_id: dto.tutoria_id,
+    estudiante_id: dto.estudiante_id,
+    estado: (dto.estado as EnrollmentStatus) ?? 'pendiente',
+    created_at: dto.created_at,
+  };
+}
+
+const STATUS_REVERSE_MAP: Record<string, EnrollmentStatus> = {
+  pendiente: 'pendiente', aceptado: 'aceptado', rechazado: 'rechazado',
+  Pendiente: 'pendiente', Aceptado: 'aceptado', Rechazado: 'rechazado',
+  PENDIENTE: 'pendiente', ACEPTADO: 'aceptado', RECHAZADO: 'rechazado',
+};
+
+function normalizeEnrollmentStatus(raw: string | undefined): EnrollmentStatus {
+  return STATUS_REVERSE_MAP[raw ?? ''] ?? 'pendiente';
+}
+
 function mapTutoriaToBackendDto(input: Omit<Tutoria, 'id' | 'createdAt' | 'updatedAt' | 'enrolledCount'>): Record<string, unknown> {
   return {
-    docente: input.subject,
+    ...(input.docente ? { docente: input.docente } : {}),
     oficina: input.location ?? '',
     informacion: input.description ?? input.title,
     titulo: input.title,
@@ -83,7 +131,7 @@ function mapTutoriaToBackendDto(input: Omit<Tutoria, 'id' | 'createdAt' | 'updat
 
 function mapTutoriaUpdateToBackendDto(input: Partial<Tutoria>): Record<string, unknown> {
   const dto: Record<string, unknown> = {};
-  if (input.subject !== undefined) dto.docente = input.subject;
+  if (input.docente !== undefined) dto.docente = input.docente;
   if (input.location !== undefined) dto.oficina = input.location;
   if (input.description !== undefined || input.title !== undefined) dto.informacion = input.description ?? input.title;
   if (input.title !== undefined) dto.titulo = input.title;
@@ -162,21 +210,48 @@ export class ExpressTutoriaRepository {
     return (data ?? []).map((r) => ({
       id: r._id as string,
       tutoriaId: r.tutoria_id as string,
-      studentId: r.estudiante_id as string,
+      studentId: (r.estudiante_id as string) ?? '',
+      estado: normalizeEnrollmentStatus(r.estado as string),
       createdAt: (r.created_at as string) ?? '',
     }));
   }
 
-  async enroll(tutoriaId: string, studentId: string): Promise<void> {
+  async enroll(tutoriaId: string): Promise<void> {
     const t = await this.token();
-    const { error } = await httpClient.post(`/admin/tutoria/${tutoriaId}/inscribir`, { estudiante_id: studentId }, t);
+    const { error } = await httpClient.post(`/admin/tutoria/${tutoriaId}/inscribir`, {}, t);
     if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
   }
 
-  async unenroll(tutoriaId: string, studentId: string): Promise<void> {
+  async unenroll(tutoriaId: string): Promise<void> {
     const t = await this.token();
-    const { error } = await httpClient.delete(`/admin/tutoria/${tutoriaId}/inscribir?estudiante_id=${studentId}`, t);
+    const { error } = await httpClient.delete(`/estudiante/tutoria/${tutoriaId}/inscribir`, t);
     if (error) throw new AppError(error ?? 'Unknown API error', 'API_ERROR');
+  }
+
+  async getStudentEnrollments(): Promise<Inscripcion[]> {
+    const t = await this.token();
+    const { data, error } = await httpClient.get<InscripcionResponseDto[]>('/estudiante/tutorias/inscripciones', t);
+    if (error) throw new AppError(error ?? 'Error al obtener inscripciones', 'API_ERROR');
+    return (data ?? []).map(mapInscripcionDto);
+  }
+
+  async getTeacherEnrollments(): Promise<Inscripcion[]> {
+    const t = await this.token();
+    const { data, error } = await httpClient.get<InscripcionResponseDto[]>('/docente/tutorias/inscripciones', t);
+    if (error) throw new AppError(error ?? 'Error al obtener inscripciones', 'API_ERROR');
+    return (data ?? []).map(mapInscripcionDto);
+  }
+
+  async acceptEnrollment(tutoriaId: string, inscripcionId: string): Promise<void> {
+    const t = await this.token();
+    const { error } = await httpClient.put(`/docente/tutoria/${tutoriaId}/inscripcion/${inscripcionId}/aceptar`, {}, t);
+    if (error) throw new AppError(error ?? 'Error al aceptar inscripción', 'API_ERROR');
+  }
+
+  async rejectEnrollment(tutoriaId: string, inscripcionId: string): Promise<void> {
+    const t = await this.token();
+    const { error } = await httpClient.put(`/docente/tutoria/${tutoriaId}/inscripcion/${inscripcionId}/rechazar`, {}, t);
+    if (error) throw new AppError(error ?? 'Error al rechazar inscripción', 'API_ERROR');
   }
 
   async isEnrolled(tutoriaId: string, studentId: string): Promise<boolean> {

@@ -607,3 +607,60 @@ En el store `auth.store.ts`, se preserva el rol del usuario actual si el backend
 #### `src/store/auth.store.ts`
 - `updateProfile()`: ahora hace `const patched = { ...updated, role: updated.role ?? currentUser.role }` antes de actualizar el estado y el SecureStore
 - El `SecureStore` también guarda el usuario con el rol corregido
+
+---
+
+## 18. Tutorías — Flujo completo de inscripción con aceptación/rechazo del docente
+
+### Problema
+El módulo de tutorías solo tenía CRUD básico de tutorías y un esqueleto de inscripción. Faltaba todo el flujo de inscripción con estados (pendiente/aceptado/rechazado), la vista de inscripciones del estudiante, la vista de inscripciones recibidas del docente, y la aceptación/rechazo por parte del docente.
+
+### Solución
+Se implementó el flujo completo de inscripción a tutorías con los nuevos endpoints del backend, usando el JWT del usuario autenticado (sin enviar `estudiante_id` en el body). La pantalla de tutorías ahora es role-aware.
+
+### Archivos modificados
+
+#### `src/features/tutorias/domain/tutoria.entity.ts`
+- Nuevo tipo `EnrollmentStatus`: `'pendiente' | 'aceptado' | 'rechazado'`
+- Nuevas interfaces: `DocenteInfo`, `EstudianteInfo`, `InscripcionTutoriaInfo`, `Inscripcion`
+- `TutoriaEnrollment` ahora incluye `estado: EnrollmentStatus`
+- Constantes `ENROLLMENT_STATUS_COLORS` y `ENROLLMENT_STATUS_LABELS` para UI
+
+#### `src/features/tutorias/infrastructure/express-tutoria.repository.ts`
+- `enroll()`: ahora envía body vacío `{}` en lugar de `{ estudiante_id }` (usa el JWT del interceptor)
+- `unenroll()`: ahora usa `DELETE /admin/tutoria/:id/inscribir` sin query param `estudiante_id`
+- Nuevo método `getStudentEnrollments()` → `GET /estudiante/tutorias/inscripciones`
+- Nuevo método `getTeacherEnrollments()` → `GET /docente/tutorias/inscripciones`
+- Nuevo método `acceptEnrollment()` → `PUT /docente/tutoria/:id/inscripcion/:inscripcionId/aceptar`
+- Nuevo método `rejectEnrollment()` → `PUT /docente/tutoria/:id/inscripcion/:inscripcionId/rechazar`
+- DTOs y mapper para las respuestas de inscripciones (`InscripcionResponseDto`, `mapInscripcionDto`)
+
+#### `src/features/tutorias/application/tutorias.hooks.ts`
+- `useTutorias()`: ahora expone `refetch` e `isRefetching` para pull-to-refresh
+- Nuevo hook `useStudentEnrollments()`: consulta `GET /estudiante/tutorias/inscripciones`
+- Nuevo hook `useTeacherEnrollments()`: consulta `GET /docente/tutorias/inscripciones`, expone mutaciones `acceptEnrollment` y `rejectEnrollment`
+- Invalidación cruzada de queries al inscribir/cancelar/aceptar/rechazar
+
+#### `app/(drawer)/tutorias.tsx`
+Pantalla completamente reescrita con tabs role-aware:
+
+**Estudiante:**
+- Tab "Explorar tutorías": lista de tutorías disponibles con botón "Inscribirse"
+- Tab "Mis inscripciones": lista de inscripciones con badge de estado (pendiente/aceptado/rechazado) y botón "Cancelar inscripción" (solo si estado !== aceptado)
+
+**Docente:**
+- Tab "Mis tutorías": CRUD existente (crear/editar/cancelar)
+- Tab "Inscripciones recibidas": subdividida en:
+  - **"Solicitudes"**: solo inscripciones con estado `pendiente`, agrupadas por tutoría
+  - **"Confirmadas"**: solo inscripciones con estado `aceptado`, agrupadas por tutoría
+  - Cada grupo de tutoría es expandible: al tocar la tarjeta de la tutoría se despliega la lista de estudiantes inscritos
+  - Cada estudiante en la lista muestra avatar, nombre, email, badge de estado
+  - En "Solicitudes", cada estudiante tiene botones circulares "Aceptar" (verde) y "Rechazar" (rojo)
+  - Al tocar un estudiante se abre un modal con su perfil completo: foto, nombre, correo (con botón "Enviar" que abre `mailto:`), teléfono (con botón "Llamar" que abre `tel:`)
+
+**Administrador:**
+- Vista CRUD completa sin cambios
+
+- Componentes extraídos fuera del componente principal (`EnrollButton`, `CancelButton`) para respetar reglas de hooks
+- Pull-to-refresh en todas las listas
+- Toasts de éxito/error para todas las acciones
