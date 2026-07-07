@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const PRODUCTION_API_URL =
-  "https://esfotgocomponentebackend-production.up.railway.app/api";
+  "https://adventurous-rebirth-production-43d4.up.railway.app/api";
 
 const envSchema = z.object({
   EXPO_PUBLIC_DEV_MODE: z.string().optional().default("false"),

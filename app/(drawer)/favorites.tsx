@@ -7,7 +7,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useNavigation, useRouter } from 'expo-router';
-import { BookOpen, Star, CalendarDays } from 'lucide-react-native';
+import { BookOpen, Star, CalendarDays, GraduationCap } from 'lucide-react-native';
 import { LightTheme as T, Sizes, Shadows, Typography } from '@/constants/design-system';
 import { GlassHeader } from '@/components/ui/GlassHeader';
 import { RouteCard, type Route } from '@/components/ui/RouteCard';
@@ -17,12 +17,13 @@ import { useFavoritesStore } from '@/store/favorites.store';
 import { useAuthStore } from '@/store/auth.store';
 import type { Favorite } from '@/features/favoritos/domain/favorite.entity';
 
-type FavTab = 'aulas' | 'rutas' | 'ubicaciones';
+type FavTab = 'aulas' | 'rutas' | 'ubicaciones' | 'docentes';
 
 const TABS: { key: FavTab; label: string; Icon: React.ComponentType<any> }[] = [
   { key: 'aulas', label: 'Aulas', Icon: BookOpen },
   { key: 'rutas', label: 'Rutas', Icon: Star },
   { key: 'ubicaciones', label: 'Ubicaciones', Icon: CalendarDays },
+  { key: 'docentes', label: 'Docentes', Icon: GraduationCap },
 ];
 
 function favoriteToRoute(f: Favorite): Route {
@@ -47,15 +48,18 @@ export default function FavoritesScreen() {
   const canFav = role === 'administrador' || role === 'gestor' || role === 'docente' || role === 'estudiante';
 
   const [activeTab, setActiveTab] = useState<FavTab>('aulas');
-  const { aulas, rutas, ubicaciones, total, isLoading, countByType } = useFavoritesByType();
+  const { aulas, rutas, ubicaciones, docentes, total, isLoading, countByType } = useFavoritesByType();
   const removeFavorite = useRemoveFavorite();
   const allLocations = useFavoritesStore((s) => s.locations);
   const removeLocalLocation = useFavoritesStore((s) => s.removeLocation);
   const allRoutes = useFavoritesStore((s) => s.routes);
   const removeLocalRoute = useFavoritesStore((s) => s.removeRoute);
+  const allDocentes = useFavoritesStore((s) => s.docentes);
+  const removeLocalDocente = useFavoritesStore((s) => s.removeDocente);
 
   const localLocations = allLocations.filter((l) => l.userId === uid);
   const localRoutes = allRoutes.filter((r) => r.userId === uid);
+  const localDocentes = allDocentes.filter((d) => d.userId === uid);
 
   const localAulas = localLocations.filter((l) => l.category === 'aulas');
   const localUbicaciones = localLocations.filter((l) => l.category !== 'aulas');
@@ -65,13 +69,20 @@ export default function FavoritesScreen() {
     scrollY.value = e.contentOffset.y;
   });
 
-  const totalFavs = total + localLocations.length + localRoutes.length;
+  const totalFavs = total + localLocations.length + localRoutes.length + localDocentes.length;
 
   const handleRemoveFavorite = useCallback((tab: FavTab, id: string) => {
     if (tab === 'rutas') {
       const isLocalRoute = localRoutes.some((r) => r.id === id);
       if (isLocalRoute) {
         removeLocalRoute(id);
+        return;
+      }
+    }
+    if (tab === 'docentes') {
+      const isLocalDocente = localDocentes.some((d) => d.email === id);
+      if (isLocalDocente) {
+        removeLocalDocente(id);
         return;
       }
     }
@@ -83,13 +94,16 @@ export default function FavoritesScreen() {
       removeLocalLocation(id);
       return;
     }
-    const items =
-      tab === 'aulas' ? aulas :
-      tab === 'rutas' ? rutas : ubicaciones;
+    const items = allApiItems[tab];
     const fav = items.find((f) => f.itemId === id);
     if (!fav) return;
     removeFavorite.mutate(fav.id);
-  }, [aulas, rutas, ubicaciones, removeFavorite, localAulas, localUbicaciones, localRoutes, removeLocalLocation, removeLocalRoute]);
+  }, [allApiItems, removeFavorite, localAulas, localUbicaciones, localRoutes, localDocentes, removeLocalLocation, removeLocalRoute, removeLocalDocente]);
+
+  const allApiItems = useMemo(() => {
+    const map: Record<FavTab, Favorite[]> = { aulas, rutas, ubicaciones, docentes };
+    return map;
+  }, [aulas, rutas, ubicaciones, docentes]);
 
   const renderContent = () => {
     if (isLoading) {
@@ -142,44 +156,98 @@ export default function FavoritesScreen() {
       );
     }
 
-    const items =
-      activeTab === 'aulas'
-        ? aulas
-        : activeTab === 'ubicaciones'
-        ? ubicaciones
-        : [];
+    if (activeTab === 'aulas' || activeTab === 'ubicaciones') {
+      const apiItems = allApiItems[activeTab];
+      const localItems = activeTab === 'aulas' ? localAulas : localUbicaciones;
+      const mergedItems = [
+        ...apiItems,
+        ...localItems.map((l): Favorite => ({
+          id: `local-${l.id}`,
+          itemId: l.id,
+          itemType: activeTab === 'aulas' ? 'aula' : 'ubicacion',
+          itemName: l.name,
+          itemData: { description: l.description, category: l.category } as Record<string, unknown>,
+          createdAt: new Date().toISOString(),
+        })),
+      ];
 
-    if (items.length === 0) {
-      const config: Record<FavTab, { Icon: React.ComponentType<any>; title: string; subtitle: string }> = {
-        aulas: { Icon: BookOpen, title: 'Sin aulas favoritas', subtitle: 'Agrega aulas desde el Mapa' },
-        rutas: { Icon: Star, title: 'Sin rutas', subtitle: '' },
-        ubicaciones: { Icon: CalendarDays, title: 'Sin ubicaciones', subtitle: 'Guarda lugares frecuentes desde el Mapa' },
-      };
-      const c = config[activeTab];
+      if (mergedItems.length === 0) {
+        const config: Record<string, { Icon: React.ComponentType<any>; title: string; subtitle: string }> = {
+          aulas: { Icon: BookOpen, title: 'Sin aulas favoritas', subtitle: 'Agrega aulas desde el Mapa' },
+          ubicaciones: { Icon: CalendarDays, title: 'Sin ubicaciones', subtitle: 'Guarda lugares frecuentes desde el Mapa' },
+        };
+        const c = config[activeTab];
+        return (
+          <EmptyState
+            icon={<c.Icon size={36} strokeWidth={1.5} color={T.textTertiary} />}
+            title={c.title}
+            subtitle={c.subtitle}
+            actionLabel="Ir al Mapa"
+            onAction={() => router.push('/map' as any)}
+            delay={100}
+          />
+        );
+      }
+
       return (
-        <EmptyState
-          icon={<c.Icon size={36} strokeWidth={1.5} color={T.textTertiary} />}
-          title={c.title}
-          subtitle={c.subtitle}
-          actionLabel="Ir al Mapa"
-          onAction={() => router.push('/map' as any)}
-          delay={100}
-        />
+        <Animated.View entering={FadeInDown.duration(400)} style={styles.list}>
+          {mergedItems.map((item, i) => (
+            <View key={item.id} style={styles.favItem}>
+              <Text style={styles.favItemName}>{item.itemName}</Text>
+              <Pressable onPress={() => handleRemoveFavorite(activeTab, item.itemId)}>
+                <Text style={styles.removeText}>Eliminar</Text>
+              </Pressable>
+            </View>
+          ))}
+        </Animated.View>
       );
     }
 
-    return (
-      <Animated.View entering={FadeInDown.duration(400)} style={styles.list}>
-        {items.map((item, i) => (
-          <View key={item.id} style={styles.favItem}>
-            <Text style={styles.favItemName}>{item.itemName}</Text>
-            <Pressable onPress={() => handleRemoveFavorite(activeTab, item.itemId)}>
-              <Text style={styles.removeText}>Eliminar</Text>
-            </Pressable>
-          </View>
-        ))}
-      </Animated.View>
-    );
+    if (activeTab === 'docentes') {
+      const apiDocentes = docentes;
+      const mergedDocentes = [
+        ...apiDocentes,
+        ...localDocentes.map((d): Favorite => ({
+          id: `local-docente-${d.email}`,
+          itemId: d.email,
+          itemType: 'docente',
+          itemName: d.name,
+          itemData: { email: d.email, phone: d.phone, image: d.image } as Record<string, unknown>,
+          createdAt: new Date().toISOString(),
+        })),
+      ];
+
+      if (mergedDocentes.length === 0) {
+        return (
+          <EmptyState
+            icon={<GraduationCap size={36} strokeWidth={1.5} color={T.textTertiary} />}
+            title="Sin docentes favoritos"
+            subtitle="Guarda docentes desde tus Tutorias"
+            actionLabel="Ir a Tutorias"
+            onAction={() => router.push('/tutorias' as any)}
+            delay={100}
+          />
+        );
+      }
+
+      return (
+        <Animated.View entering={FadeInDown.duration(400)} style={styles.list}>
+          {mergedDocentes.map((item, i) => (
+            <View key={item.id} style={styles.favItem}>
+              <View style={styles.favItemLeft}>
+                <GraduationCap size={16} strokeWidth={1.5} color={T.textSecondary} />
+                <Text style={styles.favItemName}>{item.itemName}</Text>
+              </View>
+              <Pressable onPress={() => handleRemoveFavorite('docentes', item.itemId)}>
+                <Text style={styles.removeText}>Eliminar</Text>
+              </Pressable>
+            </View>
+          ))}
+        </Animated.View>
+      );
+    }
+
+    return null;
   };
 
   return (
@@ -215,7 +283,7 @@ export default function FavoritesScreen() {
             </View>
           </View>
           <Text style={styles.subtitle}>
-            Tus aulas, rutas y ubicaciones guardadas
+            Tus aulas, rutas, ubicaciones y docentes guardados
           </Text>
         </Animated.View>
 
@@ -227,11 +295,12 @@ export default function FavoritesScreen() {
             contentContainerStyle={styles.tabs}
           >
             {TABS.map((tab) => {
-              const apiCount = countByType[tab.key];
+              const apiCount = countByType[tab.key] ?? 0;
               const localCount =
                 tab.key === 'aulas' ? localAulas.length :
                 tab.key === 'rutas' ? localRoutes.length :
-                tab.key === 'ubicaciones' ? localUbicaciones.length : 0;
+                tab.key === 'ubicaciones' ? localUbicaciones.length :
+                tab.key === 'docentes' ? localDocentes.length : 0;
               const count = apiCount + localCount;
               const isActive = activeTab === tab.key;
               return (
@@ -372,6 +441,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderWidth: 1,
     borderColor: T.cardBorder,
+  },
+  favItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
   },
   favItemName: {
     ...Typography.body,

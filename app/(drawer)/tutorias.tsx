@@ -6,9 +6,10 @@ import { TutoriaForm } from '@/features/tutorias/presentation/tutoria-form';
 import type { Tutoria, Inscripcion, EnrollmentStatus } from '@/features/tutorias/domain/tutoria.entity';
 import { ENROLLMENT_STATUS_COLORS, ENROLLMENT_STATUS_LABELS } from '@/features/tutorias/domain/tutoria.entity';
 import { useAuthStore } from '@/store/auth.store';
+import { useFavoritesStore } from '@/store/favorites.store';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { LightTheme as T, Shadows, Sizes, Typography } from '@/constants/design-system';
-import { Calendar, Clock, MapPin, Users, Edit2, Trash2, X, GraduationCap, Check, Ban, ChevronDown, ChevronRight, Mail, Phone, User } from 'lucide-react-native';
+import { Calendar, Clock, MapPin, Users, Edit2, Trash2, X, GraduationCap, Check, Ban, ChevronDown, ChevronRight, Mail, Phone, User, Heart } from 'lucide-react-native';
 import { AppCard } from '@/components/ui/app-card';
 import { AppButton } from '@/components/ui/app-button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -196,6 +197,8 @@ export default function TutoriasScreen() {
   const renderStudentEnrollment = useCallback(({ item }: { item: Inscripcion }) => {
     const info = getTutoriaInfo(item);
     const estado = item.estado;
+    const docente = info?.docente;
+    const isFav = docente ? useFavoritesStore.getState().isDocenteFavorite(docente.email) : false;
     return (
       <Animated.View entering={FadeIn.duration(300)} style={{ marginBottom: 12 }}>
         <AppCard variant="glass">
@@ -210,8 +213,26 @@ export default function TutoriasScreen() {
               {info.horarios?.map((h, i) => (
                 <View style={s.metaRow} key={i}><Calendar size={14} color={T.textSecondary} /><Text style={s.metaItem}>{h.dia} {h.horaInicio} - {h.horaFin}</Text></View>
               ))}
-              {info.docente && (
-                <View style={s.metaRow}><GraduationCap size={14} color={T.textSecondary} /><Text style={s.metaItem}>{info.docente.nombre} {info.docente.apellido}</Text></View>
+              {docente && (
+                <View style={s.metaRow}>
+                  <GraduationCap size={14} color={T.textSecondary} />
+                  <Text style={s.metaItem}>{docente.nombre} {docente.apellido}</Text>
+                  <Pressable
+                    style={s.docenteFavBtn}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      useFavoritesStore.getState().toggleDocente(docente);
+                    }}
+                    hitSlop={8}
+                  >
+                    <Heart
+                      size={14}
+                      strokeWidth={isFav ? 0 : 2}
+                      fill={isFav ? T.accent : 'transparent'}
+                      color={isFav ? T.accent : T.textTertiary}
+                    />
+                  </Pressable>
+                </View>
               )}
               {info.oficina && (
                 <View style={s.metaRow}><MapPin size={14} color={T.textSecondary} /><Text style={s.metaItem}>{info.oficina}</Text></View>
@@ -838,4 +859,9 @@ const s = StyleSheet.create({
   estudianteModalFieldLabel: { fontSize: 11, color: T.textTertiary, textTransform: 'uppercase', fontWeight: '600' },
   estudianteModalFieldValue: { fontSize: 14, color: T.textPrimary, marginTop: 1 },
   estudianteModalAction: { fontSize: 13, fontWeight: '600', color: T.primary },
+  docenteFavBtn: {
+    marginLeft: 4,
+    width: 24, height: 24, borderRadius: 12,
+    justifyContent: 'center', alignItems: 'center',
+  },
 });

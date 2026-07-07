@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { CampusLocation } from '@/features/map/domain/location.entity';
 import type { BusRoute } from '@/features/polibus/domain/route.entity';
+import type { DocenteInfo } from '@/features/tutorias/domain/tutoria.entity';
 import { useAuthStore } from './auth.store';
 
 function getCurrentUserId(): string | undefined {
@@ -35,9 +36,19 @@ interface FavoriteRoute {
   userId: string;
 }
 
+interface FavoriteDocente {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  image: string | null;
+  userId: string;
+}
+
 interface FavoritesState {
   locations: FavoriteLocation[];
   routes: FavoriteRoute[];
+  docentes: FavoriteDocente[];
   addLocation: (location: CampusLocation) => void;
   removeLocation: (id: string) => void;
   isFavorite: (id: string) => boolean;
@@ -47,6 +58,11 @@ interface FavoritesState {
   removeRoute: (id: string) => void;
   isRouteFavorite: (id: string) => boolean;
   toggleRoute: (route: BusRoute) => void;
+
+  addDocente: (docente: DocenteInfo) => void;
+  removeDocente: (email: string) => void;
+  isDocenteFavorite: (email: string) => boolean;
+  toggleDocente: (docente: DocenteInfo) => void;
 }
 
 export const useFavoritesStore = create<FavoritesState>()(
@@ -54,6 +70,7 @@ export const useFavoritesStore = create<FavoritesState>()(
     (set, get) => ({
       locations: [],
       routes: [],
+      docentes: [],
 
       addLocation: (location) => {
         const uid = getCurrentUserId();
@@ -140,6 +157,46 @@ export const useFavoritesStore = create<FavoritesState>()(
           get().removeRoute(route.id);
         } else {
           get().addRoute(route);
+        }
+      },
+
+      addDocente: (docente) => {
+        const uid = getCurrentUserId();
+        if (!uid) return;
+        const { docentes } = get();
+        if (docentes.some((d) => d.email === docente.email && d.userId === uid)) return;
+        set({
+          docentes: [
+            ...docentes,
+            {
+              id: docente.email,
+              name: `${docente.nombre} ${docente.apellido}`,
+              email: docente.email,
+              phone: docente.telefono || null,
+              image: docente.imagen || null,
+              userId: uid,
+            },
+          ],
+        });
+      },
+
+      removeDocente: (email) => {
+        const uid = getCurrentUserId();
+        if (!uid) return;
+        set({ docentes: get().docentes.filter((d) => !(d.email === email && d.userId === uid)) });
+      },
+
+      isDocenteFavorite: (email) => {
+        const uid = getCurrentUserId();
+        if (!uid) return false;
+        return get().docentes.some((d) => d.email === email && d.userId === uid);
+      },
+
+      toggleDocente: (docente) => {
+        if (get().isDocenteFavorite(docente.email)) {
+          get().removeDocente(docente.email);
+        } else {
+          get().addDocente(docente);
         }
       },
     }),

@@ -36,6 +36,16 @@ const MOCK_FAVORITES: Favorite[] = [
     itemData: { description: 'Centro de recursos bibliográficos', category: 'otro', icon: '📖' },
     createdAt: new Date().toISOString(),
   },
+  {
+    id: 'fav-9', itemId: 'd1', itemType: 'docente', itemName: 'María López',
+    itemData: { nombre: 'María', apellido: 'López', email: 'maria.lopez@epn.edu.ec', telefono: '0998765432', imagen: '' },
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'fav-10', itemId: 'd2', itemType: 'docente', itemName: 'Pedro Ramírez',
+    itemData: { nombre: 'Pedro', apellido: 'Ramírez', email: 'pedro.ramirez@epn.edu.ec', telefono: '0987654321', imagen: '' },
+    createdAt: new Date().toISOString(),
+  },
 ];
 
 export function useFavorites() {
@@ -61,11 +71,13 @@ export function useFavoritesByType() {
     aulas: byType('aula'),
     rutas: byType('ruta'),
     ubicaciones: byType('ubicacion'),
+    docentes: byType('docente'),
     total: query.data?.length ?? 0,
     countByType: {
       aulas: byType('aula').length,
       rutas: byType('ruta').length,
       ubicaciones: byType('ubicacion').length,
+      docentes: byType('docente').length,
     },
   };
 }

@@ -3,6 +3,8 @@ import { useMemo, useCallback } from 'react';
 import { ExpressGraphRepository } from '../infrastructure/express-graph.repository';
 import { aStar } from '../domain/a-star';
 import type { CampusGraph, GraphEdge, GraphNode, OptimalRoute } from '../domain/graph.entity';
+import { buildLocationGraph } from './graph-enricher';
+import { useCampusLocations } from '@/features/map/application/map.hooks';
 
 const repo = new ExpressGraphRepository();
 const QUERY_KEY = ['campus-graph'];
@@ -59,6 +61,21 @@ export function useGraphEdgeMutations() {
     [updateEdge]
   );
   return { upsertEdge, updateEdge, deleteEdge, toggleBlock };
+}
+
+export function useEnrichedCampusGraph() {
+  const { data: locations } = useCampusLocations();
+
+  const locationGraph = useMemo(() => {
+    if (!locations || locations.length === 0) return undefined;
+    return buildLocationGraph(locations, 200);
+  }, [locations]);
+
+  return {
+    data: locationGraph,
+    isLoading: false,
+    error: null,
+  };
 }
 
 export function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {

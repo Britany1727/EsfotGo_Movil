@@ -34,7 +34,7 @@ import { BusMarker } from '@/features/polibus/presentation/bus-marker';
 import { useBusRoutes, useBusLocations } from '@/features/polibus/application/bus.hooks';
 import { useAdminZones } from '@/features/admin/application/poi.hooks';
 import { useBatteryOptimizer } from '@/features/map/services/battery-optimizer';
-import { useCampusGraph, useOptimalRoute, haversineMeters } from '@/features/graph/application/graph.hooks';
+import { useEnrichedCampusGraph as useCampusGraph, useOptimalRoute, haversineMeters } from '@/features/graph/application/graph.hooks';
 import { findNearestNode, graphRouteToWaypoints } from '@/features/graph/application/graph-route.service';
 import type { GraphRouteResult } from '@/features/graph/application/graph-route.service';
 import { LightTheme as T, Shadows, Sizes, Typography } from '@/constants/design-system';
